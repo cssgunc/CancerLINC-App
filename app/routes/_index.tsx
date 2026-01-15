@@ -163,11 +163,13 @@ export default function HomePage() {
             {/* Top Bar */}
             <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
                 <div className="container mx-auto flex items-center gap-4 px-6 py-4">
-                    {/* Logo (Implement later!!!) */}
+                    {/* Logo */}
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-600 text-[6px] font-extrabold leading-none text-white shadow-sm">
-                            CancerLINC
-                        </div>
+                        <img
+                            src="/public/CancerLINC-Logo-1.png"
+                            alt="CancerLINC Logo"
+                            className="w-16 mb-4"
+                        />
                     </div>
 
                     {/* Search */}
