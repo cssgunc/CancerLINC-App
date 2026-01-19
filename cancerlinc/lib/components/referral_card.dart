@@ -69,15 +69,6 @@ class ReferralCard extends StatelessWidget {
                     color: const Color(0xFFD9D9D9),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(15),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: CustomPaint(painter: XMarkPainter()),
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -195,21 +186,4 @@ class ReferralCard extends StatelessWidget {
       ),
     );
   }
-}
-
-// The X in the figma
-class XMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF000000)
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.square;
-
-    canvas.drawLine(const Offset(0, 0), Offset(size.width, size.height), paint);
-    canvas.drawLine(Offset(size.width, 0), Offset(0, size.height), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
