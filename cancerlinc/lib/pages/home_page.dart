@@ -27,8 +27,8 @@ class HomePage extends StatelessWidget {
             Center(
               child: Image.asset(
                 'assets/images/cancerlinc-logo.png',
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
               ),
             ),
             SizedBox(height: 33),
