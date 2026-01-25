@@ -33,20 +33,16 @@ class LoginPage extends StatefulWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 8),
-                // logo placeholder
-                Container(
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey.shade200,
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'Logo',
-                        style: TextStyle(fontSize: 20, color: Colors.black54),
+                SizedBox(
+                  height: 160,
+                  child: Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(80), // keep it circular
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        width: 160,
+                        height: 160,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
