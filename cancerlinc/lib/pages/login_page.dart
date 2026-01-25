@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/forgot_password.dart';
 import 'package:cancerlinc/pages/create_account.dart';
 import 'package:cancerlinc/pages/home_page.dart';
+import 'package:cancerlinc/components/bottom_bar.dart';
 class LoginPage extends StatefulWidget {
     const LoginPage({Key? key}) : super(key: key);
 
@@ -152,7 +153,7 @@ class LoginPage extends StatefulWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => HomePage()),
+                        MaterialPageRoute(builder: (context) => const BottomBar()),
                       );
                     },
                     style: ElevatedButton.styleFrom(
