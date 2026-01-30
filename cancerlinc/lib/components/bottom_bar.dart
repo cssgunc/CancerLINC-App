@@ -56,7 +56,7 @@ class _BottomBarState extends State<BottomBar> {
             label: 'Checklist',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.card_giftcard),
+            icon: Icon(Icons.contacts),
             label: 'Referrals',
           ),
           BottomNavigationBarItem(
