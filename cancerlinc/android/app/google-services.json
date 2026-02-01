@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "658048959142",
+    "project_id": "cancerlinc-addb4",
+    "storage_bucket": "cancerlinc-addb4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:658048959142:android:062707c900cd12e72eaa67",
+        "android_client_info": {
+          "package_name": "com.example.cancerlinc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPhA12mLa3myA69V9qpFMqq7ffXJxvhx0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
