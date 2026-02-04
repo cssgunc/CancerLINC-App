@@ -1,6 +1,8 @@
 import React from "react";
+import { Link, useNavigate } from "react-router";
 
 export default function CancerLINCLogin() {
+    const navigate = useNavigate();
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-gray-200 to-gray-500">
             <div className="bg-white w-full max-w-md p-8">
@@ -21,7 +23,7 @@ export default function CancerLINCLogin() {
                     className="space-y-4"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        window.location.href = "/";
+                        navigate("/");
                     }}
                 >
                     <div>
@@ -61,12 +63,12 @@ export default function CancerLINCLogin() {
                             <input type="checkbox" className="rounded" />
                             <span>Remember Me</span>
                         </label>
-                        <a
-                            href="/forgot-pass"
+                        <Link
+                            to="/forgot-pass"
                             className="text-blue-600 hover:underline"
                         >
                             Forgot Password?
-                        </a>
+                        </Link>
                     </div>
 
                     <button
@@ -83,9 +85,7 @@ export default function CancerLINCLogin() {
                     <button
                         type="button"
                         className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
-                        onClick={() =>
-                            (window.location.href = "/create-account")
-                        }
+                        onClick={() => navigate("/create-account")}
                     >
                         CREATE AN ACCOUNT
                     </button>

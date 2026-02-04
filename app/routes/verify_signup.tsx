@@ -1,10 +1,12 @@
 import React from "react";
+import { Link, useNavigate } from "react-router";
 
 export default function CancerLINCForgotPassowrd() {
+    const navigate = useNavigate();
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-gray-200 to-gray-500">
             <div className="bg-white w-full max-w-md p-8">
-                <a href="/">
+                <Link to="/">
                     <p
                         className="text-gray-500 text-sm mt-2"
                         text-gray-500
@@ -13,7 +15,7 @@ export default function CancerLINCForgotPassowrd() {
                     >
                         {"<"} Back to login
                     </p>
-                </a>
+                </Link>
                 <p>
                     <br></br>
                     <br></br>
@@ -42,11 +44,11 @@ export default function CancerLINCForgotPassowrd() {
                     <button
                         type="button"
                         className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
-                        onClick={() => (window.location.href = "/")}
+                        onClick={() => navigate("/")}
                     >
                         CONTINUE
                     </button>
-                    <a href="/">
+                    <Link to="/">
                         <p
                             className="text-gray-500 text-center text-sm mt-2"
                             text-gray-500
@@ -55,7 +57,7 @@ export default function CancerLINCForgotPassowrd() {
                         >
                             Send New Code
                         </p>
-                    </a>
+                    </Link>
                     <p>
                         <br></br>
                     </p>
