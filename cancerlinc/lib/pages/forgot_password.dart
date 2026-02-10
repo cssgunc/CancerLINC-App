@@ -83,6 +83,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                         context,
                         MaterialPageRoute(builder: (context) => VerifyEmail(email: _emailController.text)),
                       );
+
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,

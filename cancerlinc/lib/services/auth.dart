@@ -15,6 +15,7 @@ class AuthService {
     );
   }
 
+
   Future<UserCredential> register(
       String email, String password) {
     return _auth.createUserWithEmailAndPassword(
