@@ -1,17 +1,32 @@
-import React from "react";
-import { Link, useNavigate } from "react-router";
-export default function CancerLINCForgotPassowrd() {
-    const navigate = useNavigate();
+import React, { useState } from "react";
+import { Link } from "react-router";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "~/services/firebase_app";
+
+export default function ForgotPassword() {
+    const [email, setEmail] = useState("");
+    const [sending, setSending] = useState(false);
+
+    const onClickContinue = async () => {
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail) {
+            alert("Please enter your email.");
+            return;
+        }
+
+        setSending(true);
+        try {
+            await sendPasswordResetEmail(auth, trimmedEmail);
+            alert("Password reset email sent. Please check your inbox.");
+        } finally {
+            setSending(false);
+        }
+    };
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-gray-200 to-gray-500">
             <div className="bg-white w-full max-w-md p-8">
-                <Link to="/">
-                    <p
-                        className="text-gray-500 text-sm mt-2"
-                        text-gray-500
-                        text-sm
-                        mt-2
-                    >
+                <Link to="/login">
+                    <p className="text-gray-500 text-sm mt-2">
                         {"<"} Back to login
                     </p>
                 </Link>
@@ -32,15 +47,20 @@ export default function CancerLINCForgotPassowrd() {
                             <input
                                 type="email"
                                 className="w-full outline-none text-gray-700"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="you@example.com"
+                                autoComplete="email"
                             />
                         </div>
                     </div>
                     <button
                         type="button"
                         className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
-                        onClick={() => navigate("/verify-email")}
+                        onClick={onClickContinue}
+                        disabled={sending}
                     >
-                        CONTINUE
+                        {sending ? "SENDING…" : "SEND EMAIL"}
                     </button>
                     <p>
                         <br></br>

@@ -1,18 +1,17 @@
 import React from "react";
 import { Link, useNavigate } from "react-router";
 
-export default function CancerLINCForgotPassowrd() {
+/*
+ * Currently not in use. Password reset is handled by Firebase's built in email flow, and users are expected to click the link in their email to reset their password. This page could be used as a custom password reset flow if we wanted to implement that in the future.
+ */
+
+export default function ChangePassword() {
     const navigate = useNavigate();
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-gray-200 to-gray-500">
             <div className="bg-white w-full max-w-md p-8">
-                <Link to="/">
-                    <p
-                        className="text-gray-500 text-sm mt-2"
-                        text-gray-500
-                        text-sm
-                        mt-2
-                    >
+                <Link to="/login">
+                    <p className="text-gray-500 text-sm mt-2">
                         {"<"} Back to login
                     </p>
                 </Link>
@@ -35,7 +34,7 @@ export default function CancerLINCForgotPassowrd() {
                         </label>
                         <div className="flex items-center border rounded-lg px-3 py-2">
                             <input
-                                type="email"
+                                type="password"
                                 className="w-full outline-none text-gray-700"
                             />
                         </div>
@@ -46,7 +45,7 @@ export default function CancerLINCForgotPassowrd() {
                         </label>
                         <div className="flex items-center border rounded-lg px-3 py-2">
                             <input
-                                type="email"
+                                type="password"
                                 className="w-full outline-none text-gray-700"
                             />
                         </div>

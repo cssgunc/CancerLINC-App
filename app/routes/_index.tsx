@@ -1,6 +1,7 @@
 //This is the home page
 import React, { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { useAuth } from "~/services/firebase_provider";
 
 // --- Temporary JSON data ---
 type Status = "Active" | "Follow-up" | "Pending";
@@ -77,6 +78,7 @@ function statusStyles(status: Status) {
 
 // --- Component ---
 export default function HomePage() {
+    const { user, logout } = useAuth();
     const [query, setQuery] = useState("");
     const [sortKey, setSortKey] = useState<SortKey>("name");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -166,7 +168,7 @@ export default function HomePage() {
                     {/* Logo */}
                     <div className="flex items-center gap-3">
                         <img
-                            src="/public/CancerLINC-Logo-1.png"
+                            src="/CancerLINC-Logo-1.png"
                             alt="CancerLINC Logo"
                             className="w-16 mb-4"
                         />
@@ -185,13 +187,14 @@ export default function HomePage() {
 
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
-                        <span>Welcome, Emily</span> {/* User's name */}
-                        <a
-                            href="#"
+                        <span>Welcome, {user?.displayName}</span>{" "}
+                        <button
+                            type="button"
+                            onClick={logout}
                             className="font-medium text-gray-900 underline underline-offset-2"
                         >
                             Logout
-                        </a>
+                        </button>
                     </div>
                 </div>
             </header>
