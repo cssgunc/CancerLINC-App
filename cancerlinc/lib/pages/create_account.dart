@@ -40,6 +40,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
+
   String? _validatePassword(String? v) {
     final s = v ?? '';
     if (s.isEmpty) return 'Enter a password';
