@@ -1,9 +1,12 @@
 // lib/login_page.dart
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/forgot_password.dart';
 import 'package:cancerlinc/pages/create_account.dart';
 import 'package:cancerlinc/pages/home_page.dart';
 import 'package:cancerlinc/components/bottom_bar.dart';
+import 'package:cancerlinc/services/auth.dart';
+
 class LoginPage extends StatefulWidget {
     const LoginPage({Key? key}) : super(key: key);
 
@@ -12,6 +15,7 @@ class LoginPage extends StatefulWidget {
   }
 
   class _LoginPageState extends State<LoginPage> {
+    final AuthService _authService = AuthService();
     final TextEditingController _emailController = TextEditingController(); //email controller
     final TextEditingController _passwordController = TextEditingController(); //password controller
     bool _rememberMe = false;
@@ -146,12 +150,25 @@ class LoginPage extends StatefulWidget {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const BottomBar()),
-                      );
+                    onPressed: () async {
+                      try {
+                        final userCredential = await _authService.signIn(
+                          _emailController.text.trim(),
+                          _passwordController.text.trim(),
+                        );
+                        if (mounted) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (context) => const BottomBar()),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.message ?? 'Login failed')),
+                        );
+                      }
                     },
+
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
