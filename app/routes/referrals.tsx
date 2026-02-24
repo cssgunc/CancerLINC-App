@@ -21,39 +21,73 @@ export default function ReferralsPage() {
     };
 
     return (
-        <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-            <header className="mb-8">
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                    Referrals
-                </h1>
-                <p className="mt-1 text-sm text-gray-500">
-                    Browse and manage patient referrals.
-                </p>
+        <div className="min-h-screen bg-gray-50">
+            {/* Top Bar — matches _index layout */}
+            <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
+                <div className="container mx-auto flex items-center gap-4 px-6 py-4">
+                    {/* Logo */}
+                    <div className="flex items-center gap-3">
+                        <img
+                            src="/public/CancerLINC-Logo-1.png"
+                            alt="CancerLINC Logo"
+                            className="w-16 mb-4"
+                        />
+                    </div>
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Welcome / Logout */}
+                    <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
+                        <span>Welcome, Emily</span>
+                        <a
+                            href="#"
+                            className="font-medium text-gray-900 underline underline-offset-2"
+                        >
+                            Logout
+                        </a>
+                    </div>
+                </div>
             </header>
 
-            {loading && (
-                <div className="flex items-center justify-center py-20">
-                    <div
-                        className="h-8 w-8 animate-spin rounded-full border-4
-                                   border-gray-200 border-t-indigo-600"
-                        role="status"
-                        aria-label="Loading referrals"
-                    />
-                </div>
-            )}
+            {/* Main Content */}
+            <main className="container mx-auto px-6 py-8">
+                <h1 className="text-2xl font-semibold text-gray-900">
+                    Referrals
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm text-gray-600">
+                    Browse and manage patient referrals.
+                </p>
 
-            {error && (
-                <div
-                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                    role="alert"
-                >
-                    Failed to load referrals: {error}
-                </div>
-            )}
+                <section className="mt-8">
+                    {loading && (
+                        <div className="flex items-center justify-center py-20">
+                            <div
+                                className="h-8 w-8 animate-spin rounded-full border-4
+                                           border-gray-200 border-t-indigo-600"
+                                role="status"
+                                aria-label="Loading referrals"
+                            />
+                        </div>
+                    )}
 
-            {!loading && !error && (
-                <ReferralsList referrals={referrals} onDelete={handleDelete} />
-            )}
-        </main>
+                    {error && (
+                        <div
+                            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                            role="alert"
+                        >
+                            Failed to load referrals: {error}
+                        </div>
+                    )}
+
+                    {!loading && !error && (
+                        <ReferralsList
+                            referrals={referrals}
+                            onDelete={handleDelete}
+                        />
+                    )}
+                </section>
+            </main>
+        </div>
     );
 }
