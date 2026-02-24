@@ -8,4 +8,5 @@ export default [
     route("change-password", "routes/change_password.tsx"),
     route("create-account", "routes/create_account.tsx"),
     route("verify-signup", "routes/verify_signup.tsx"),
+    route("referrals", "routes/referrals.tsx"),
 ] satisfies RouteConfig;
