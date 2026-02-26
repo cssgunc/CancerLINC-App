@@ -1,11 +1,16 @@
 import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
-    index("routes/login.tsx"),
-    route("_index", "routes/_index.tsx"),
+    //protected routes
+    route("", "routes/require_auth.tsx", [index("routes/_index.tsx")]),
+
+    //routes require user to not be logged in
+    route("", "routes/require_guest.tsx", [
+        route("login", "routes/login.tsx"),
+        route("create-account", "routes/create_account.tsx"),
+    ]),
+
+    //routes available to anyone
     route("forgot-pass", "routes/forgot_pass.tsx"),
     route("verify-email", "routes/verify_email.tsx"),
-    route("change-password", "routes/change_password.tsx"),
-    route("create-account", "routes/create_account.tsx"),
-    route("verify-signup", "routes/verify_signup.tsx"),
 ] satisfies RouteConfig;

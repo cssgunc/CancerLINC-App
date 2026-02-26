@@ -5,4 +5,5 @@
 /.react-router/
 /build/
 
+#environment files
 .env

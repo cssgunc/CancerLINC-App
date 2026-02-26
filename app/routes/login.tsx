@@ -1,12 +1,44 @@
-import React from "react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { loginWithEmail } from "../services/auth_service";
 
-export default function CancerLINCLogin() {
+export default function Login() {
+    const navigate = useNavigate();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [remember, setRemember] = useState(false);
+
+    const [error, setError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    async function onClickLogin(e: React.FormEvent) {
+        e.preventDefault();
+        if (isSubmitting) return;
+
+        setError(null);
+        setIsSubmitting(true);
+        try {
+            await loginWithEmail({
+                email,
+                password,
+                remember,
+            });
+            navigate("/");
+        } catch (err: unknown) {
+            const message =
+                err instanceof Error ? err.message : "Failed to login";
+            setError(message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-gray-200 to-gray-500">
             <div className="bg-white w-full max-w-md p-8">
                 <div className="flex flex-col items-center mb-6">
                     <img
-                        src="/public/CancerLINC-Logo-1.png"
+                        src="/CancerLINC-Logo-1.png"
                         alt="CancerLINC Logo"
                         className="w-40 mb-4"
                     />
@@ -17,13 +49,7 @@ export default function CancerLINCLogin() {
                     </p>
                 </div>
 
-                <form
-                    className="space-y-4"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        window.location.href = "/";
-                    }}
-                >
+                <form className="space-y-4" onSubmit={onClickLogin}>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Email Address
@@ -36,6 +62,9 @@ export default function CancerLINCLogin() {
                                 type="email"
                                 placeholder="Enter your email"
                                 className="w-full outline-none text-gray-700"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                disabled={isSubmitting}
                             />
                         </div>
                     </div>
@@ -52,40 +81,54 @@ export default function CancerLINCLogin() {
                                 type="password"
                                 placeholder="Enter your password"
                                 className="w-full outline-none text-gray-700"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                disabled={isSubmitting}
                             />
                         </div>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
-                        <label className="flex items-center space-x-2">
-                            <input type="checkbox" className="rounded" />
+                        <label className="flex items-center space-x-2 text-gray-700">
+                            <input
+                                type="checkbox"
+                                className="rounded"
+                                checked={remember}
+                                onChange={(e) => setRemember(e.target.checked)}
+                                disabled={isSubmitting}
+                            />
                             <span>Remember Me</span>
                         </label>
-                        <a
-                            href="/forgot-pass"
+                        <Link
+                            to="/forgot-pass"
                             className="text-blue-600 hover:underline"
                         >
                             Forgot Password?
-                        </a>
+                        </Link>
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
+                        disabled={isSubmitting}
+                        aria-busy={isSubmitting}
+                        className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                        LOGIN
+                        {isSubmitting ? "LOGGING IN..." : "LOGIN"}
                     </button>
 
                     <div className="flex items-center justify-center text-gray-500 text-sm mt-2">
                         <span className="mx-2">- OR -</span>
                     </div>
 
+                    {error ? (
+                        <p className="text-sm text-red-600">{error}</p>
+                    ) : null}
+
                     <button
                         type="button"
                         className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800"
-                        onClick={() =>
-                            (window.location.href = "/create-account")
-                        }
+                        onClick={() => navigate("/create-account")}
+                        disabled={isSubmitting}
                     >
                         CREATE AN ACCOUNT
                     </button>
