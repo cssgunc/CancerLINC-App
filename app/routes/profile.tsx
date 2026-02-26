@@ -252,7 +252,7 @@ export default function ProfilePage() {
                                 name="displayName"
                                 value={formData.displayName}
                                 onChange={handleInputChange}
-                                className="w-full border rounded-lg px-3 py-2 outline-none focus:border-black"
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-gray-900 outline-none focus:border-black"
                             />
                         </div>
 
@@ -265,7 +265,7 @@ export default function ProfilePage() {
                                 name="email"
                                 value={formData.email}
                                 onChange={handleInputChange}
-                                className="w-full border rounded-lg px-3 py-2 outline-none focus:border-black"
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-gray-900 outline-none focus:border-black"
                             />
                         </div>
 
@@ -278,7 +278,7 @@ export default function ProfilePage() {
                                 name="phone"
                                 value={formData.phone}
                                 onChange={handleInputChange}
-                                className="w-full border rounded-lg px-3 py-2 outline-none focus:border-black"
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-gray-900 outline-none focus:border-black"
                             />
                         </div>
 
@@ -291,7 +291,7 @@ export default function ProfilePage() {
                                 value={formData.bio}
                                 onChange={handleInputChange}
                                 rows={4}
-                                className="w-full border rounded-lg px-3 py-2 outline-none focus:border-black"
+                                className="w-full border rounded-lg px-3 py-2 bg-white text-gray-900 outline-none focus:border-black"
                             />
                         </div>
 
