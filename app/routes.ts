@@ -4,7 +4,7 @@ export default [
     //protected routes
     route("", "routes/require_auth.tsx", [
         index("routes/_index.tsx"),
-        route("member", "routes/member.tsx"),
+        route("member/:user", "routes/member.tsx"),
     ]),
 
     //routes require user to not be logged in
