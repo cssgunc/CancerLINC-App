@@ -1,6 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import ReferralsList from "~/components/ReferralsList";
-import { useReferrals, deleteReferral } from "~/hooks/useReferrals";
+import ReferralFormDialog from "~/components/ReferralFormDialog";
+import {
+    useReferrals,
+    addReferral,
+    editReferral,
+    deleteReferral,
+} from "~/hooks/useReferrals";
+import type { ReferralFormData } from "~/hooks/useReferrals";
+import type { ReferralWithProvider } from "~/types/referral";
 
 export function meta() {
     return [
@@ -8,9 +16,36 @@ export function meta() {
         { name: "description", content: "View and manage patient referrals." },
     ];
 }
+// THIS PAGE IS TEMPORARY AND ONLY TO SHOW THE REFERRALS CARD AND REFERRALS LIST.
+// Those components will later be merged into the member/profile page where both messages and referrals will be.
 
 export default function ReferralsPage() {
     const { referrals, loading, error } = useReferrals();
+
+    // Dialog state
+    const [formOpen, setFormOpen] = useState(false);
+    const [editingReferral, setEditingReferral] =
+        useState<ReferralWithProvider | null>(null);
+
+    // --- Handlers ---
+
+    const handleAdd = () => {
+        setEditingReferral(null);
+        setFormOpen(true);
+    };
+
+    const handleEdit = (referral: ReferralWithProvider) => {
+        setEditingReferral(referral);
+        setFormOpen(true);
+    };
+
+    const handleFormSubmit = async (data: ReferralFormData) => {
+        if (editingReferral) {
+            await editReferral(editingReferral.id, data);
+        } else {
+            await addReferral(data);
+        }
+    };
 
     const handleDelete = async (id: string) => {
         try {
@@ -28,7 +63,7 @@ export default function ReferralsPage() {
                     {/* Logo */}
                     <div className="flex items-center gap-3">
                         <img
-                            src="/public/CancerLINC-Logo-1.png"
+                            src="/CancerLINC-Logo-1.png"
                             alt="CancerLINC Logo"
                             className="w-16 mb-4"
                         />
@@ -51,7 +86,7 @@ export default function ReferralsPage() {
             </header>
 
             {/* Main Content */}
-            <main className="container mx-auto px-6 py-8">
+            <main className="px-10 py-8">
                 <h1 className="text-2xl font-semibold text-gray-900">
                     Referrals
                 </h1>
@@ -83,11 +118,22 @@ export default function ReferralsPage() {
                     {!loading && !error && (
                         <ReferralsList
                             referrals={referrals}
+                            onAdd={handleAdd}
+                            onEdit={handleEdit}
                             onDelete={handleDelete}
                         />
                     )}
                 </section>
             </main>
+
+            {/* Add / Edit Dialog */}
+            <ReferralFormDialog
+                open={formOpen}
+                onClose={() => setFormOpen(false)}
+                onSubmit={handleFormSubmit}
+                initialData={editingReferral}
+                title={editingReferral ? "Edit Referral" : "Add New Referral"}
+            />
         </div>
     );
 }
