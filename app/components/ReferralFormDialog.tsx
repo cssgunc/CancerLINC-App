@@ -9,6 +9,7 @@ interface ReferralFormDialogProps {
     onSubmit: (data: ReferralFormData) => Promise<void>;
     initialData?: ReferralWithProvider | null;
     title: string;
+    patientId: string;
 }
 
 export default function ReferralFormDialog({
@@ -17,9 +18,10 @@ export default function ReferralFormDialog({
     onSubmit,
     initialData,
     title,
+    patientId,
 }: ReferralFormDialogProps) {
     const [formData, setFormData] = useState<ReferralFormData>({
-        patientId: "",
+        patientId: patientId,
         socialWorkerId: "",
         type: "",
         status: "pending",
@@ -32,7 +34,7 @@ export default function ReferralFormDialog({
     useEffect(() => {
         if (initialData) {
             setFormData({
-                patientId: initialData.patientId ?? "",
+                patientId: patientId,
                 socialWorkerId: initialData.socialWorkerId ?? "",
                 type: initialData.type ?? "",
                 status: initialData.status ?? "pending",
@@ -41,7 +43,7 @@ export default function ReferralFormDialog({
             });
         } else {
             setFormData({
-                patientId: "",
+                patientId: patientId,
                 socialWorkerId: "",
                 type: "",
                 status: "pending",
@@ -50,7 +52,7 @@ export default function ReferralFormDialog({
             });
         }
         setError(null);
-    }, [initialData, open]);
+    }, [initialData, open, patientId]);
 
     if (!open) return null;
 
@@ -110,25 +112,17 @@ export default function ReferralFormDialog({
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Display Patient ID as read-only */}
                     <div>
-                        <label
-                            htmlFor="patientId"
-                            className="mb-1 block text-sm font-medium text-gray-700"
-                        >
+                        <label className="mb-1 block text-sm font-medium text-gray-700">
                             Patient ID
                         </label>
-                        <input
-                            id="patientId"
-                            name="patientId"
-                            type="text"
-                            required
-                            value={formData.patientId}
-                            onChange={handleChange}
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
-                                       focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
+                        <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
+                            {patientId}
+                        </div>
                     </div>
 
+                    {/* Social Worker ID field */}
                     <div>
                         <label
                             htmlFor="socialWorkerId"

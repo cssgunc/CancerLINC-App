@@ -20,7 +20,10 @@ export function meta() {
 // Those components will later be merged into the member/profile page where both messages and referrals will be.
 
 export default function ReferralsPage() {
-    const { referrals, loading, error } = useReferrals();
+    // TODO: get this from route params or auth context
+    const patientId = "1";
+
+    const { referrals, loading, error } = useReferrals(patientId);
 
     // Dialog state
     const [formOpen, setFormOpen] = useState(false);
@@ -41,15 +44,15 @@ export default function ReferralsPage() {
 
     const handleFormSubmit = async (data: ReferralFormData) => {
         if (editingReferral) {
-            await editReferral(editingReferral.id, data);
+            await editReferral(patientId, editingReferral.id, data);
         } else {
-            await addReferral(data);
+            await addReferral(patientId, data);
         }
     };
 
     const handleDelete = async (id: string) => {
         try {
-            await deleteReferral(id);
+            await deleteReferral(patientId, id);
         } catch (err) {
             console.error("Failed to delete referral:", err);
         }
@@ -75,6 +78,8 @@ export default function ReferralsPage() {
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
                         <span>Welcome, Emily</span>
+                        {/*/ TODO: Apply social worker's name based on logged in
+                        user.*/}
                         <a
                             href="#"
                             className="font-medium text-gray-900 underline underline-offset-2"
@@ -133,6 +138,7 @@ export default function ReferralsPage() {
                 onSubmit={handleFormSubmit}
                 initialData={editingReferral}
                 title={editingReferral ? "Edit Referral" : "Add New Referral"}
+                patientId={patientId}
             />
         </div>
     );
