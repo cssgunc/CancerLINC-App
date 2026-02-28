@@ -21,7 +21,7 @@ export function meta() {
 
 export default function ReferralsPage() {
     // TODO: get this from route params or auth context
-    const patientId = "1";
+    const patientId = "3"; // Can change to update DB
 
     const { referrals, loading, error } = useReferrals(patientId);
 
