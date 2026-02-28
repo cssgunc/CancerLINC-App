@@ -77,9 +77,8 @@ export default function ReferralsPage() {
 
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
-                        <span>Welcome, Emily</span>
-                        {/*/ TODO: Apply social worker's name based on logged in
-                        user.*/}
+                        <span>Welcome, Emily</span>{" "}
+                        {/*TODO: Based on logged in user */}
                         <a
                             href="#"
                             className="font-medium text-gray-900 underline underline-offset-2"
