@@ -1,12 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
+import 'package:cancerlinc/services/auth.dart';
+
+import '../components/bottom_bar.dart';
+
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
 
   @override
   State<CreateAccountPage> createState() => _CreateAccountPageState();
+
 }
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
@@ -15,6 +21,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _acceptedTerms = false;
   bool _obscure1 = true;
   bool _obscure2 = true;
@@ -217,7 +224,25 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _acceptedTerms ? _onSignUp : null,
+                        onPressed: () async {
+                          try {
+                            final userCredential = await _authService.register(
+                              _emailController.text.trim(),
+                              _passwordController.text.trim(),
+                            );
+                            if (mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => const BottomBar()),
+                              );
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.message ?? 'Login failed')),
+                            );
+                          }
+                        },
+
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -225,6 +250,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         child: const Text('SIGN UP', style: TextStyle(color: Colors.white)),
                       ),
                     ),
+
                   ],
                 ),
               ),
