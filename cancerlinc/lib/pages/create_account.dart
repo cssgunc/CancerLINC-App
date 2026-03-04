@@ -233,7 +233,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                             if (mounted) {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(builder: (context) => const BottomBar()),
+                                MaterialPageRoute(builder: (context) => const LoginPage()),
                               );
                             }
                           } on FirebaseAuthException catch (e) {
