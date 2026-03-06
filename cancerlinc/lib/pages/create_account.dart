@@ -1,10 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/services/auth.dart';
-
-import '../components/bottom_bar.dart';
 
 
 class CreateAccountPage extends StatefulWidget {
@@ -226,7 +225,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       child: ElevatedButton(
                         onPressed: () async {
                           try {
-                            final userCredential = await _authService.register(
+                            await _authService.register(
                               _emailController.text.trim(),
                               _passwordController.text.trim(),
                             );
@@ -236,9 +235,29 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                                 MaterialPageRoute(builder: (context) => const LoginPage()),
                               );
                             }
-                          } on FirebaseAuthException catch (e) {
+                          } on FirebaseAuthException catch (e, st) {
+                            if (kDebugMode) {
+                              debugPrint('Signup FirebaseAuthException: ${e.runtimeType}');
+                              debugPrint('code=${e.code}, message=${e.message}');
+                              debugPrintStack(
+                                label: 'Signup FirebaseAuthException stacktrace',
+                                stackTrace: st,
+                              );
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.message ?? 'Login failed')),
+                              SnackBar(content: Text(e.message ?? 'Signup failed')),
+                            );
+                          } catch (e, st) {
+                            if (kDebugMode) {
+                              debugPrint('Signup unexpected exception: ${e.runtimeType}');
+                              debugPrint('details: $e');
+                              debugPrintStack(
+                                label: 'Signup unexpected exception stacktrace',
+                                stackTrace: st,
+                              );
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Signup failed. Please try again.')),
                             );
                           }
                         },
