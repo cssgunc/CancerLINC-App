@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cancerlinc/components/call_number.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   // Dynamic data variables
-  final String userName = "Lisa";
+  String get userName {
+    final email = FirebaseAuth.instance.currentUser?.email ?? "User";
+    return email.split("@").first;
+  }
   final int newMessageCount = 12;
   final String nextEventDate = "Nov 12";
   final int completedChecklists = 10;
