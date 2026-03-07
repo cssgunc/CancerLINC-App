@@ -1,12 +1,17 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
+import 'package:cancerlinc/services/auth.dart';
+
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
 
   @override
   State<CreateAccountPage> createState() => _CreateAccountPageState();
+
 }
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
@@ -15,6 +20,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _acceptedTerms = false;
   bool _obscure1 = true;
   bool _obscure2 = true;
@@ -217,7 +223,45 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _acceptedTerms ? _onSignUp : null,
+                        onPressed: () async {
+                          try {
+                            await _authService.register(
+                              _emailController.text.trim(),
+                              _passwordController.text.trim(),
+                            );
+                            if (mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => const LoginPage()),
+                              );
+                            }
+                          } on FirebaseAuthException catch (e, st) {
+                            if (kDebugMode) {
+                              debugPrint('Signup FirebaseAuthException: ${e.runtimeType}');
+                              debugPrint('code=${e.code}, message=${e.message}');
+                              debugPrintStack(
+                                label: 'Signup FirebaseAuthException stacktrace',
+                                stackTrace: st,
+                              );
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.message ?? 'Signup failed')),
+                            );
+                          } catch (e, st) {
+                            if (kDebugMode) {
+                              debugPrint('Signup unexpected exception: ${e.runtimeType}');
+                              debugPrint('details: $e');
+                              debugPrintStack(
+                                label: 'Signup unexpected exception stacktrace',
+                                stackTrace: st,
+                              );
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Signup failed. Please try again.')),
+                            );
+                          }
+                        },
+
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -225,6 +269,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         child: const Text('SIGN UP', style: TextStyle(color: Colors.white)),
                       ),
                     ),
+
                   ],
                 ),
               ),
