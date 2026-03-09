@@ -23,6 +23,13 @@ export default function ReferralFormDialog({
     const [formData, setFormData] = useState<ReferralFormData>({
         patientId: patientId,
         socialWorkerId: "",
+
+        referralFirstName: "",
+        referralLastName: "",
+        referralTitle: "",
+        referralEmail: "",
+        referralPhone: "",
+
         type: "",
         status: "pending",
         notes: "",
@@ -35,22 +42,37 @@ export default function ReferralFormDialog({
         if (initialData) {
             setFormData({
                 patientId: patientId,
-                socialWorkerId: initialData.socialWorkerId ?? "",
-                type: initialData.type ?? "",
-                status: initialData.status ?? "pending",
-                notes: initialData.notes ?? "",
-                websiteUrl: initialData.websiteUrl ?? "",
+                socialWorkerId: initialData?.socialWorkerId ?? "",
+
+                referralFirstName: initialData?.referralFirstName ?? "",
+                referralLastName: initialData?.referralLastName ?? "",
+                referralTitle: initialData?.referralTitle ?? "",
+                referralEmail: initialData?.referralEmail ?? "",
+                referralPhone: initialData?.referralPhone ?? "",
+
+                type: initialData?.type ?? "",
+                status: initialData?.status ?? "pending",
+                notes: initialData?.notes ?? "",
+                websiteUrl: initialData?.websiteUrl ?? "",
             });
         } else {
             setFormData({
                 patientId: patientId,
                 socialWorkerId: "",
+
+                referralFirstName: "",
+                referralLastName: "",
+                referralTitle: "",
+                referralEmail: "",
+                referralPhone: "",
+
                 type: "",
                 status: "pending",
                 notes: "",
                 websiteUrl: "",
             });
         }
+
         setError(null);
     }, [initialData, open, patientId]);
 
@@ -139,6 +161,97 @@ export default function ReferralFormDialog({
                             onChange={handleChange}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
                                        focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="referralFirstName"
+                            className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                            Referral First Name
+                        </label>
+                        <input
+                            id="referralFirstName"
+                            name="referralFirstName"
+                            type="text"
+                            value={formData.referralFirstName}
+                            onChange={handleChange}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                                    focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="referralLastName"
+                            className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                            Referral Last Name
+                        </label>
+                        <input
+                            id="referralLastName"
+                            name="referralLastName"
+                            type="text"
+                            value={formData.referralLastName}
+                            onChange={handleChange}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                                    focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="referralTitle"
+                            className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                            Referral Title
+                        </label>
+                        <input
+                            id="referralTitle"
+                            name="referralTitle"
+                            type="text"
+                            value={formData.referralTitle}
+                            onChange={handleChange}
+                            placeholder="e.g. Oncologist"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                                    focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="referralEmail"
+                            className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                            Referral Email
+                        </label>
+                        <input
+                            id="referralEmail"
+                            name="referralEmail"
+                            type="email"
+                            value={formData.referralEmail}
+                            onChange={handleChange}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                                    focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="referralPhone"
+                            className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                            Referral Phone
+                        </label>
+                        <input
+                            id="referralPhone"
+                            name="referralPhone"
+                            type="text"
+                            value={formData.referralPhone}
+                            onChange={handleChange}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                                    focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                     </div>
 

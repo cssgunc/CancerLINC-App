@@ -34,7 +34,7 @@ export default function ReferralCard({
         statusColors[referral.status] || "bg-gray-100 text-gray-800";
 
     return (
-        <article className="relative bg-white py-2 pr-4 transition-colors">
+        <article className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors">
             {/* Hover Options Menu */}
             <div className="absolute right-2 top-2 group z-10">
                 <button

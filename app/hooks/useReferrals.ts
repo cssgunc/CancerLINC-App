@@ -93,6 +93,14 @@ export function useReferrals(patientId: string) {
 export interface ReferralFormData {
     patientId: string;
     socialWorkerId: string;
+
+    // added to track referral contact info
+    referralFirstName: string;
+    referralLastName: string;
+    referralTitle?: string;
+    referralEmail?: string;
+    referralPhone?: string;
+
     type: string;
     status: string;
     notes: string;

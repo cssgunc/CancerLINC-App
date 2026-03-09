@@ -3,16 +3,24 @@ import type { User } from "./user";
 
 // Matches the exact structure in Firestore 'referrals' collection
 export interface Referral {
-    id: string; // Maps to referralId
+    id: string;
     status: "pending" | "accepted" | "completed" | "rejected";
+
     patientId: string;
     socialWorkerId: string;
+
+    referralFirstName?: string;
+    referralLastName?: string;
+    referralTitle?: string;
+    referralEmail?: string;
+    referralPhone?: string;
+
     type: string;
     notes: string;
     websiteUrl?: string;
+
     dateSubmitted: Timestamp;
     lastUpdated: Timestamp;
-    isDeleted?: boolean; // Used for soft-deletes
 }
 
 // The joined data structure used by the frontend components

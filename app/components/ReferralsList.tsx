@@ -32,7 +32,7 @@ export default function ReferralsList({
             </div>
 
             {/* List Container - Matches the big bordered box in Figma */}
-            <div className="relative flex h-[600px] flex-col rounded-xl border border-gray-200 bg-white pt-4 pl-4 pb-4">
+            <div className="relative flex flex-col pt-4 pb-4">
                 {referrals.length === 0 ? (
                     <div className="flex flex-1 flex-col items-center justify-center py-16">
                         <p className="text-sm text-gray-500">
