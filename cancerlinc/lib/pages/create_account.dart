@@ -4,16 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/services/auth.dart';
 
+
 import '../components/bottom_bar.dart';
+
+
 
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
 
+
   @override
   State<CreateAccountPage> createState() => _CreateAccountPageState();
 
+
 }
+
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
   final _formKey = GlobalKey<FormState>();
@@ -27,6 +33,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   bool _obscure2 = true;
   String? _errorMessage;
 
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -36,6 +43,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     super.dispose();
   }
 
+
   String? _validateEmail(String? v) {
     final s = v ?? '';
     if (s.isEmpty) return 'Enter your email';
@@ -44,10 +52,13 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
+
   String? _validateUsername(String? v) {
     if ((v ?? '').isEmpty) return 'Enter a username';
     return null;
   }
+
+
 
 
   String? _validatePassword(String? v) {
@@ -57,14 +68,17 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
+
   String? _validateConfirm(String? v) {
     if ((v ?? '').isEmpty) return 'Retype your password';
     if (v != _passwordController.text) return 'Passwords do not match';
     return null;
   }
 
+
   void _onSignUp() async {
     setState(() => _errorMessage = null);
+
 
     if (!_acceptedTerms) {
       setState(() {
@@ -73,13 +87,16 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       return;
     }
 
+
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
 
     try {
       await _authService.register(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -88,12 +105,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         );
       }
 
+
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = _getFirebaseError(e);
       });
     }
   }
+
 
   String _getFirebaseError(FirebaseAuthException e) {
     switch (e.code) {
@@ -108,6 +127,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,20 +138,21 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              },
-              child: const Padding(
-                padding: EdgeInsets.only(top: 30.0),
-                child: Row(children: [
-                  const Padding(padding: EdgeInsets.only(left: 8.0)), 
-                  Icon(Icons.arrow_back_ios), 
-                  Text("Back to login")]),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 30.0),
+                  child: Row(children: [
+                    const Padding(padding: EdgeInsets.only(left: 8.0)),
+                    Icon(Icons.arrow_back_ios),
+                    Text("Back to login")]),
+                ),
               ),
-            ),
+
 
               const SizedBox(height: 16),
               Center(
@@ -143,7 +164,9 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 ),
               ),
 
+
               const SizedBox(height: 24),
+
 
               Form(
                 key: _formKey,
@@ -162,6 +185,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       ),
                     ),
 
+
                     const SizedBox(height: 16),
                     const Text('Username', style: TextStyle(fontSize: 14)),
                     const SizedBox(height: 8),
@@ -173,6 +197,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
                     ),
+
 
                     const SizedBox(height: 16),
                     const Text('Password', style: TextStyle(fontSize: 14)),
@@ -190,6 +215,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         ),
                       ),
                     ),
+
 
                     const SizedBox(height: 16),
                     const Text('Retype Password', style: TextStyle(fontSize: 14)),
@@ -266,6 +292,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       ],
                     ),
 
+
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -280,6 +307,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       ),
                     ),
 
+
                   ],
                 ),
               ),
@@ -290,3 +318,4 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 }
+
