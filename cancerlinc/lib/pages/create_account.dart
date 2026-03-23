@@ -139,10 +139,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             children: [
               GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                  );
+                  Navigator.pop(context);
                 },
                 child: const Padding(
                   padding: EdgeInsets.only(top: 30.0),
@@ -318,4 +315,3 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 }
-
