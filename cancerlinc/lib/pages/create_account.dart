@@ -25,6 +25,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   bool _acceptedTerms = false;
   bool _obscure1 = true;
   bool _obscure2 = true;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -38,7 +39,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   String? _validateEmail(String? v) {
     final s = v ?? '';
     if (s.isEmpty) return 'Enter your email';
-    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(s)) return 'Enter a valid email'; //email
+    if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(s)) {
+      return 'Enter a valid email';};
     return null;
   }
 
@@ -61,32 +63,48 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
-  void _onSignUp() {
+  void _onSignUp() async {
+    setState(() => _errorMessage = null);
+
     if (!_acceptedTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please accept terms and conditions')));
+      setState(() {
+        _errorMessage = 'Please accept Terms and Conditions';
+      });
       return;
     }
 
-    if (_formKey.currentState?.validate() ?? false) {
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Account created'),
-          content: const Text('Your account has been created. You can now log in.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (route) => route.isFirst,
-                );
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    try {
+      await _authService.register(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const BottomBar()),
+        );
+      }
+
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = _getFirebaseError(e);
+      });
+    }
+  }
+
+  String _getFirebaseError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'This email is already registered';
+      case 'invalid-email':
+        return 'Please enter a valid email address';
+      case 'weak-password':
+        return 'Password is too weak';
+      default:
+        return 'Something went wrong. Try again.';
     }
   }
 
@@ -189,7 +207,36 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         ),
                       ),
                     ),
-
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            border: Border.all(color: Colors.red.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 18),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,25 +271,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            final userCredential = await _authService.register(
-                              _emailController.text.trim(),
-                              _passwordController.text.trim(),
-                            );
-                            if (mounted) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (context) => const BottomBar()),
-                              );
-                            }
-                          } on FirebaseAuthException catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.message ?? 'Login failed')),
-                            );
-                          }
-                        },
-
+                        onPressed: _onSignUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
