@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:cancerlinc/components/call_number.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   // Dynamic data variables
-  final String userName = "Lisa";
+  String get userName {
+    final email = FirebaseAuth.instance.currentUser?.email ?? "User";
+    return email.split("@").first;
+  }
   final int newMessageCount = 12;
   final String nextEventDate = "Nov 12";
   final int completedChecklists = 10;
   final int totalChecklists = 12;
   final int activeReferrals = 11;
-  final String phoneNumber = "(804) 562-0371";
-  final String faxNumber = "(804) 918-0946";
+  final String faxNumber = "804-918-0946";
+  final String phoneNumber = "804-562-0371";
   final String addressLine1 = "200 South 3rd St,";
   final String addressLine2 = "Richmond, VA 23219";
 
@@ -157,28 +161,7 @@ class HomePage extends StatelessWidget {
               mainAxisSpacing: 6,
               childAspectRatio: 7,
               children: [
-                InkWell(
-                  onTap: () async {
-                    final url = Uri.parse('tel:$phoneNumber');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url);
-                    }
-                  },
-                  child: Row(
-                    children: [
-                      Icon(Icons.phone_outlined, size: 20),
-                      SizedBox(width: 12),
-                      Text(
-                        phoneNumber,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                CallButton(phoneNumber: phoneNumber),
                 Row(
                   children: [
                     Icon(Icons.location_pin, size: 20),
@@ -193,10 +176,7 @@ class HomePage extends StatelessWidget {
                   children: [
                     Icon(Icons.adf_scanner_outlined, size: 20),
                     SizedBox(width: 12),
-                    Text(
-                      faxNumber,
-                      style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-                    ),
+                    CallButton(phoneNumber: faxNumber),
                   ],
                 ),
                 Row(
