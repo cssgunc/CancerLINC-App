@@ -2,7 +2,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
     //protected routes
-    route("", "routes/require_auth.tsx", [index("routes/_index.tsx")]),
+    route("", "routes/require_auth.tsx", [index("routes/_index.tsx"), route("profile", "routes/profile.tsx")]),
 
     //routes require user to not be logged in
     route("", "routes/require_guest.tsx", [
