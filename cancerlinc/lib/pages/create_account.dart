@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/services/auth.dart';
 
+import '../components/bottom_bar.dart';
+
 
 import '../components/bottom_bar.dart';
 
@@ -32,7 +34,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   bool _obscure1 = true;
   bool _obscure2 = true;
   String? _errorMessage;
-
 
   @override
   void dispose() {
@@ -75,10 +76,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
-
   void _onSignUp() async {
     setState(() => _errorMessage = null);
-
 
     if (!_acceptedTerms) {
       setState(() {
@@ -87,16 +86,13 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       return;
     }
 
-
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
 
     try {
       await _authService.register(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -105,14 +101,12 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         );
       }
 
-
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = _getFirebaseError(e);
       });
     }
   }
-
 
   String _getFirebaseError(FirebaseAuthException e) {
     switch (e.code) {
