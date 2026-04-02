@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isChatParticipant(chatId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/chats/$(chatId))
+        && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    }
+
+    function canonicalChatIdFor(userA, userB) {
+      return userA < userB ? userA + "__" + userB : userB + "__" + userA;
+    }
+
+    function canReadUserProfile(userId) {
+      return signedIn()
+        && (
+          request.auth.uid == userId
+          || exists(
+            /databases/$(database)/documents/chats/$(canonicalChatIdFor(request.auth.uid, userId))
+          )
+        );
+    }
+
+    match /users/{userId} {
+      allow read: if canReadUserProfile(userId);
+    }
+
+    match /chats/{chatId} {
+      allow read: if isChatParticipant(chatId);
+
+      allow create, update: if isChatParticipant(chatId)
+        && request.resource.data.chatId == chatId
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.auth.uid in request.resource.data.participants;
+
+      allow delete: if false;
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isChatParticipant(chatId);
+
+      allow create: if isChatParticipant(chatId)
+        && request.resource.data.messageId == messageId
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.clientBatchId is string
+        && request.resource.data.clientOrder is int
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.isRead == false
+        && (
+          (
+            request.resource.data.messageType == "text"
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && !("imageUrl" in request.resource.data)
+            && !("imagePath" in request.resource.data)
+          )
+          ||
+          (
+            request.resource.data.messageType == "image"
+            && request.resource.data.content is string
+            && request.resource.data.imageUrl is string
+            && request.resource.data.imagePath is string
+            && request.resource.data.imageMimeType is string
+            && request.resource.data.imageFileName is string
+            && request.resource.data.imageSizeBytes is int
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

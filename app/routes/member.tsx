@@ -5,7 +5,7 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { ImagePlus, Send } from "lucide-react";
+import { ImagePlus, Send, X } from "lucide-react";
 import { useParams } from "react-router";
 import {
     collection,
@@ -17,18 +17,30 @@ import {
     orderBy,
     type QueryDocumentSnapshot,
     query,
-    serverTimestamp,
-    setDoc,
     startAfter,
     Timestamp,
 } from "firebase/firestore";
 import { db } from "~/services/firebase_app";
+import {
+    CHAT_ATTACHMENT_SETTINGS,
+    formatMaxImageSizeLabel,
+} from "~/services/chat_settings";
+import {
+    ChatAttachmentValidationError,
+    sendChatMessageWithOptionalImage,
+    validateChatImageFile,
+} from "~/services/chat_attachment_service";
 import { useAuth } from "~/services/firebase_provider";
 
 type ChatMessage = {
     id: string;
     direction: "sent" | "received";
+    messageType: "text" | "image";
     text: string;
+    imageUrl?: string;
+    clientBatchId?: string;
+    clientOrder: number;
+    sortTimestamp: number;
     timestamp: string;
 };
 
@@ -59,11 +71,15 @@ export default function MemberPage() {
     );
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState("");
+    const [composerError, setComposerError] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
     const messageContainerRef = useRef<HTMLDivElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const oldestCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(
         null
     );
@@ -108,18 +124,43 @@ export default function MemberPage() {
             const data = messageDoc.data() as {
                 senderId?: string;
                 content?: string;
+                messageType?: "text" | "image";
+                imageUrl?: string;
+                clientBatchId?: string;
+                clientOrder?: number;
                 timestamp?: Timestamp;
             };
 
             return {
                 id: messageDoc.id,
                 direction: data.senderId === user?.uid ? "sent" : "received",
+                messageType: data.messageType ?? "text",
                 text: data.content ?? "",
+                imageUrl: data.imageUrl,
+                clientBatchId: data.clientBatchId,
+                clientOrder: data.clientOrder ?? 0,
+                sortTimestamp: data.timestamp?.toMillis() ?? 0,
                 timestamp: formatMessageTime(data.timestamp),
             };
         },
         [user?.uid]
     );
+
+    const sortMessagesAscending = useCallback((items: ChatMessage[]) => {
+        return [...items].sort((a, b) => {
+            if (a.sortTimestamp !== b.sortTimestamp) {
+                return a.sortTimestamp - b.sortTimestamp;
+            }
+
+            if ((a.clientBatchId ?? "") !== (b.clientBatchId ?? "")) {
+                return (a.clientBatchId ?? "").localeCompare(
+                    b.clientBatchId ?? ""
+                );
+            }
+
+            return a.clientOrder - b.clientOrder;
+        });
+    }, []);
 
     const scrollToBottom = useCallback(() => {
         requestAnimationFrame(() => {
@@ -150,12 +191,14 @@ export default function MemberPage() {
 
             oldestCursorRef.current = snapshot.docs.at(-1) ?? null;
             setHasMoreMessages(snapshot.docs.length === PAGE_SIZE);
-            setMessages(snapshot.docs.map(mapMessageDoc).reverse());
+            setMessages(
+                sortMessagesAscending(snapshot.docs.map(mapMessageDoc))
+            );
             scrollToBottom();
         } finally {
             setIsLoadingMessages(false);
         }
-    }, [chatId, mapMessageDoc, scrollToBottom]);
+    }, [chatId, mapMessageDoc, scrollToBottom, sortMessagesAscending]);
 
     const loadOlderMessages = useCallback(async () => {
         if (
@@ -191,8 +234,12 @@ export default function MemberPage() {
             oldestCursorRef.current = snapshot.docs.at(-1) ?? null;
             setHasMoreMessages(snapshot.docs.length === PAGE_SIZE);
 
-            const olderMessages = snapshot.docs.map(mapMessageDoc).reverse();
-            setMessages((current) => [...olderMessages, ...current]);
+            const olderMessages = sortMessagesAscending(
+                snapshot.docs.map(mapMessageDoc)
+            );
+            setMessages((current) =>
+                sortMessagesAscending([...olderMessages, ...current])
+            );
 
             requestAnimationFrame(() => {
                 const nextContainer = messageContainerRef.current;
@@ -205,7 +252,13 @@ export default function MemberPage() {
         } finally {
             setIsLoadingOlder(false);
         }
-    }, [chatId, hasMoreMessages, isLoadingOlder, mapMessageDoc]);
+    }, [
+        chatId,
+        hasMoreMessages,
+        isLoadingOlder,
+        mapMessageDoc,
+        sortMessagesAscending,
+    ]);
 
     useEffect(() => {
         void loadInitialMessages();
@@ -225,41 +278,79 @@ export default function MemberPage() {
         return chatUserProfile.firstName.trim();
     }, [chatUserProfile]);
 
+    useEffect(() => {
+        if (!selectedImage) {
+            setSelectedImagePreviewUrl("");
+            return;
+        }
+
+        const objectUrl = URL.createObjectURL(selectedImage);
+        setSelectedImagePreviewUrl(objectUrl);
+
+        return () => {
+            URL.revokeObjectURL(objectUrl);
+        };
+    }, [selectedImage]);
+
+    function clearSelectedImage() {
+        setSelectedImage(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }
+
     async function sendMessage() {
-        const content = newMessage.trim();
-        if (!content || !user?.uid || !userId || !chatId || isSending) return;
+        if (!user?.uid || !userId || !chatId || isSending) return;
 
-        const chatRef = doc(db, "chats", chatId);
-        const messageRef = doc(collection(db, "chats", chatId, "messages"));
-
+        setComposerError("");
         setIsSending(true);
 
         try {
-            await setDoc(messageRef, {
-                messageId: messageRef.id,
+            await sendChatMessageWithOptionalImage({
+                chatId,
                 senderId: user.uid,
-                content,
-                timestamp: serverTimestamp(),
-                isRead: false,
+                recipientId: userId,
+                text: newMessage,
+                imageFile: selectedImage,
             });
-
-            await setDoc(
-                chatRef,
-                {
-                    chatId,
-                    participants: [user.uid, userId].sort(),
-                    lastMessage: content,
-                    lastMessageTimestamp: serverTimestamp(),
-                },
-                { merge: true }
-            );
-
             setNewMessage("");
+            clearSelectedImage();
             await loadInitialMessages();
-        } catch {
+        } catch (error) {
+            if (error instanceof ChatAttachmentValidationError) {
+                setComposerError(error.message);
+            } else {
+                setComposerError(
+                    "Unable to send the message right now. Please try again."
+                );
+            }
             return;
         } finally {
             setIsSending(false);
+        }
+    }
+
+    function handleSelectImage() {
+        fileInputRef.current?.click();
+    }
+
+    function handleImageInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setComposerError("");
+
+        try {
+            validateChatImageFile(file);
+            setSelectedImage(file);
+        } catch (error) {
+            clearSelectedImage();
+            if (error instanceof ChatAttachmentValidationError) {
+                setComposerError(error.message);
+                return;
+            }
+
+            setComposerError("Unable to attach that image.");
         }
     }
 
@@ -325,7 +416,25 @@ export default function MemberPage() {
                                                 <div
                                                     className={`rounded-2xl px-4 py-3 text-[16px] ${isSent ? "bg-black text-white" : "bg-[#F0F0F0] text-black"}`}
                                                 >
-                                                    {message.text}
+                                                    {message.messageType ===
+                                                    "image" ? (
+                                                        message.imageUrl ? (
+                                                            <img
+                                                                src={
+                                                                    message.imageUrl
+                                                                }
+                                                                alt="Chat attachment"
+                                                                className="max-h-72 rounded-xl object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span>
+                                                                Image
+                                                                unavailable
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        message.text
+                                                    )}
                                                 </div>
                                                 <span
                                                     className={`mt-1 text-[16px] text-[#999999] ${isSent ? "text-right" : "text-left"}`}
@@ -342,7 +451,50 @@ export default function MemberPage() {
                         <div className="mt-auto">
                             <div className="h-px w-full bg-[#D9D9D9]" />
 
+                            {selectedImage ? (
+                                <div className="mt-4 rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-medium text-black">
+                                                Image ready to send
+                                            </p>
+                                            <p className="text-xs text-[#666666]">
+                                                {selectedImage.name}
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#D9D9D9] bg-white text-black"
+                                            aria-label="Remove selected image"
+                                            onClick={clearSelectedImage}
+                                            disabled={isSending}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+
+                                    {selectedImagePreviewUrl ? (
+                                        <img
+                                            src={selectedImagePreviewUrl}
+                                            alt="Selected attachment preview"
+                                            className="mt-3 max-h-56 rounded-xl object-cover"
+                                        />
+                                    ) : null}
+                                </div>
+                            ) : null}
+
                             <div className="mt-4 flex items-center gap-3">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept={CHAT_ATTACHMENT_SETTINGS.acceptedMimeTypes.join(
+                                        ","
+                                    )}
+                                    className="hidden"
+                                    onChange={handleImageInputChange}
+                                />
+
                                 <input
                                     type="text"
                                     placeholder="Type message..."
@@ -363,6 +515,8 @@ export default function MemberPage() {
                                     type="button"
                                     className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
                                     aria-label="Add photo"
+                                    onClick={handleSelectImage}
+                                    disabled={isSending}
                                 >
                                     <ImagePlus size={22} />
                                 </button>
@@ -372,10 +526,28 @@ export default function MemberPage() {
                                     className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
                                     aria-label="Send message"
                                     onClick={() => void sendMessage()}
-                                    disabled={isSending || !newMessage.trim()}
+                                    disabled={
+                                        isSending ||
+                                        (!newMessage.trim() && !selectedImage)
+                                    }
                                 >
                                     <Send size={22} />
                                 </button>
+                            </div>
+
+                            <div className="mt-3 flex items-center justify-between gap-4 text-xs text-[#666666]">
+                                <p>
+                                    One image per message. Max{" "}
+                                    {formatMaxImageSizeLabel()}. Allowed:{" "}
+                                    {
+                                        CHAT_ATTACHMENT_SETTINGS.acceptedFileExtensionsLabel
+                                    }
+                                </p>
+                                {composerError ? (
+                                    <p className="text-right text-[#B42318]">
+                                        {composerError}
+                                    </p>
+                                ) : null}
                             </div>
                         </div>
                     </section>
