@@ -34,6 +34,7 @@ import { useAuth } from "~/services/firebase_provider";
 
 type ChatMessage = {
     id: string;
+    senderId: string;
     direction: "sent" | "received";
     messageType: "text" | "image";
     text: string;
@@ -78,6 +79,9 @@ export default function MemberPage() {
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
+    const [senderProfiles, setSenderProfiles] = useState<
+        Record<string, string>
+    >({});
     const messageContainerRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const oldestCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(
@@ -85,9 +89,8 @@ export default function MemberPage() {
     );
 
     const chatId = useMemo(() => {
-        if (!user?.uid || !userId) return "";
-        return [user.uid, userId].sort().join("__");
-    }, [user?.uid, userId]);
+        return userId ?? "";
+    }, [userId]);
 
     useEffect(() => {
         if (!userId) {
@@ -133,6 +136,7 @@ export default function MemberPage() {
 
             return {
                 id: messageDoc.id,
+                senderId: data.senderId ?? "",
                 direction: data.senderId === user?.uid ? "sent" : "received",
                 messageType: data.messageType ?? "text",
                 text: data.content ?? "",
@@ -144,6 +148,49 @@ export default function MemberPage() {
             };
         },
         [user?.uid]
+    );
+
+    const loadSenderProfiles = useCallback(
+        async (msgs: ChatMessage[]) => {
+            const unknownIds = [
+                ...new Set(
+                    msgs
+                        .map((m) => m.senderId)
+                        .filter(
+                            (id) =>
+                                id &&
+                                id !== user?.uid &&
+                                id !== userId &&
+                                !(id in senderProfiles)
+                        )
+                ),
+            ];
+            if (!unknownIds.length) return;
+
+            const fetched: Record<string, string> = {};
+            await Promise.all(
+                unknownIds.map(async (id) => {
+                    try {
+                        const snap = await getDoc(doc(db, "users", id));
+                        if (snap.exists()) {
+                            const d = snap.data() as Omit<UserProfile, "uid">;
+                            const name =
+                                `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() ||
+                                d.username ||
+                                d.email ||
+                                id;
+                            fetched[id] = name ?? id;
+                        } else {
+                            fetched[id] = id;
+                        }
+                    } catch {
+                        fetched[id] = id;
+                    }
+                })
+            );
+            setSenderProfiles((prev) => ({ ...prev, ...fetched }));
+        },
+        [user?.uid, userId, senderProfiles]
     );
 
     const sortMessagesAscending = useCallback((items: ChatMessage[]) => {
@@ -189,16 +236,24 @@ export default function MemberPage() {
             );
             const snapshot = await getDocs(initialQuery);
 
+            const mapped = sortMessagesAscending(
+                snapshot.docs.map(mapMessageDoc)
+            );
             oldestCursorRef.current = snapshot.docs.at(-1) ?? null;
             setHasMoreMessages(snapshot.docs.length === PAGE_SIZE);
-            setMessages(
-                sortMessagesAscending(snapshot.docs.map(mapMessageDoc))
-            );
+            setMessages(mapped);
             scrollToBottom();
+            void loadSenderProfiles(mapped);
         } finally {
             setIsLoadingMessages(false);
         }
-    }, [chatId, mapMessageDoc, scrollToBottom, sortMessagesAscending]);
+    }, [
+        chatId,
+        loadSenderProfiles,
+        mapMessageDoc,
+        scrollToBottom,
+        sortMessagesAscending,
+    ]);
 
     const loadOlderMessages = useCallback(async () => {
         if (
@@ -237,6 +292,7 @@ export default function MemberPage() {
             const olderMessages = sortMessagesAscending(
                 snapshot.docs.map(mapMessageDoc)
             );
+            void loadSenderProfiles(olderMessages);
             setMessages((current) =>
                 sortMessagesAscending([...olderMessages, ...current])
             );
@@ -256,6 +312,7 @@ export default function MemberPage() {
         chatId,
         hasMoreMessages,
         isLoadingOlder,
+        loadSenderProfiles,
         mapMessageDoc,
         sortMessagesAscending,
     ]);
@@ -309,7 +366,6 @@ export default function MemberPage() {
             await sendChatMessageWithOptionalImage({
                 chatId,
                 senderId: user.uid,
-                recipientId: userId,
                 text: newMessage,
                 imageFile: selectedImage,
             });
@@ -404,6 +460,14 @@ export default function MemberPage() {
 
                                 {messages.map((message) => {
                                     const isSent = message.direction === "sent";
+                                    const isPatient =
+                                        message.senderId === userId;
+                                    const senderLabel = isSent
+                                        ? null
+                                        : isPatient
+                                          ? chatUserFullName
+                                          : (senderProfiles[message.senderId] ??
+                                            message.senderId);
 
                                     return (
                                         <div
@@ -413,6 +477,11 @@ export default function MemberPage() {
                                             <div
                                                 className={`max-w-[75%] ${isSent ? "items-end" : "items-start"} flex flex-col`}
                                             >
+                                                {senderLabel ? (
+                                                    <span className="mb-1 text-xs font-medium text-[#666666]">
+                                                        {senderLabel}
+                                                    </span>
+                                                ) : null}
                                                 <div
                                                     className={`rounded-2xl px-4 py-3 text-[16px] ${isSent ? "bg-black text-white" : "bg-[#F0F0F0] text-black"}`}
                                                 >

@@ -1,4 +1,5 @@
 import {
+    arrayUnion,
     collection,
     doc,
     serverTimestamp,
@@ -21,7 +22,6 @@ import { db, storage } from "./firebase_app";
 export type SendChatMessageInput = {
     chatId: string;
     senderId: string;
-    recipientId: string;
     text?: string;
     imageFile?: File | null;
 };
@@ -80,7 +80,6 @@ export function validateChatImageFile(file: File) {
 export async function sendChatMessageWithOptionalImage({
     chatId,
     senderId,
-    recipientId,
     text,
     imageFile,
 }: SendChatMessageInput) {
@@ -167,7 +166,7 @@ export async function sendChatMessageWithOptionalImage({
             chatRef,
             {
                 chatId,
-                participants: [senderId, recipientId].sort(),
+                participants: arrayUnion(senderId, chatId),
                 lastMessage: buildChatSummary(trimmedText, hasImage),
                 lastMessageTimestamp: serverTimestamp(),
                 lastMessageBatchId: clientBatchId,

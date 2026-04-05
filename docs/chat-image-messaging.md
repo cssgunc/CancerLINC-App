@@ -1,6 +1,6 @@
-# Chat Image Messaging
+# Chat Messaging
 
-This document covers the v1 image-messaging implementation for [`member.tsx`](/workspace/app/routes/member.tsx). The feature supports one optional image per send action and stores text and image content as separate Firestore message documents that share a `clientBatchId`.
+This document covers the messaging implementation for [`member.tsx`](/workspace/app/routes/member.tsx). The feature supports one optional image per send action and stores text and image content as separate Firestore message documents that share a `clientBatchId`.
 
 ## What was added
 
@@ -9,6 +9,12 @@ This document covers the v1 image-messaging implementation for [`member.tsx`](/w
 - upload/message orchestration in [`chat_attachment_service.ts`](/workspace/app/services/chat_attachment_service.ts)
 - composer preview, validation, image rendering, and single-click send in [`member.tsx`](/workspace/app/routes/member.tsx)
 - Firebase rules and config in [`firebase.json`](/workspace/firebase.json), [`firestore.rules`](/workspace/firebase/firestore.rules), and [`storage.rules`](/workspace/firebase/storage.rules)
+
+## Chat ID and participant model
+
+Each chat's ID is the **patient's UID**. All messages between a patient and any number of social workers are stored under `Chats/{patientId}/messages/{messageId}`. This means every social worker accesses the same single chat per patient — there is no per-pair chat.
+
+The `participants` field on the chat document is an array that grows over time via `arrayUnion`. Every time a social worker sends a message, their UID and the patient UID (which equals `chatId`) are merged into the array. The `senderId` field on each message document records who sent it, and the UI displays the sender's name above received message bubbles.
 
 ## Message model
 
@@ -77,14 +83,14 @@ firebase deploy --only firestore:rules,storage
 
 ## Security and privacy notes
 
-- The Storage path is chat-scoped: `chatAttachments/{chatId}/{messageId}.{ext}`.
+- The Storage path is chat-scoped: `chatAttachments/{chatId}/{messageId}.{ext}` where `chatId` is the patient's UID.
 - Firestore chat reads are restricted to chat participants.
+- A new chat document can be created by any signed-in user who includes themselves in `participants`. Subsequent updates require the user to already be a participant.
 - Firestore message creation is restricted to the authenticated sender and blocks edits/deletes in v1.
 - Storage reads and writes are restricted to users who participate in the parent chat.
 - Storage writes are limited to image MIME types and the configured size cap.
 - The service attempts best-effort Storage cleanup if upload succeeds but the Firestore batch fails.
 - Download URLs are stored on the message document. Treat these conversations as sensitive data and keep bucket/rules review part of release sign-off.
-- Recipient eligibility is not fully modeled in this repo. If only certain patient/social-worker pairs may message each other, that authorization rule still needs to be enforced at the app/data-model level.
 
 ## Current limitations
 
