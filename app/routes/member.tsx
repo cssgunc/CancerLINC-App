@@ -55,12 +55,18 @@ type UserProfile = {
 
 const PAGE_SIZE = 20;
 
-function formatMessageTime(timestamp?: Timestamp) {
+function formatMessageDateTime(timestamp?: Timestamp) {
     if (!timestamp) return "";
-    return timestamp.toDate().toLocaleTimeString("en-US", {
+    const date = timestamp.toDate();
+    const datePart = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+    });
+    const timePart = date.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
     });
+    return `${datePart} · ${timePart}`;
 }
 
 export default function MemberPage() {
@@ -70,6 +76,7 @@ export default function MemberPage() {
     const [chatUserProfile, setChatUserProfile] = useState<UserProfile | null>(
         null
     );
+    const [currentUserName, setCurrentUserName] = useState<string>("");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -122,6 +129,31 @@ export default function MemberPage() {
         };
     }, [userId]);
 
+    useEffect(() => {
+        if (!user?.uid) return;
+
+        let isActive = true;
+
+        async function loadCurrentUserProfile() {
+            const snapshot = await getDoc(doc(db, "users", user!.uid));
+            if (!isActive || !snapshot.exists()) return;
+
+            const d = snapshot.data() as Omit<UserProfile, "uid">;
+            const name =
+                `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() ||
+                d.username ||
+                d.email ||
+                "";
+            setCurrentUserName(name);
+        }
+
+        loadCurrentUserProfile().catch(() => {});
+
+        return () => {
+            isActive = false;
+        };
+    }, [user?.uid]);
+
     const mapMessageDoc = useCallback(
         (messageDoc: QueryDocumentSnapshot<DocumentData>): ChatMessage => {
             const data = messageDoc.data() as {
@@ -144,7 +176,7 @@ export default function MemberPage() {
                 clientBatchId: data.clientBatchId,
                 clientOrder: data.clientOrder ?? 0,
                 sortTimestamp: data.timestamp?.toMillis() ?? 0,
-                timestamp: formatMessageTime(data.timestamp),
+                timestamp: formatMessageDateTime(data.timestamp),
             };
         },
         [user?.uid]
@@ -439,7 +471,7 @@ export default function MemberPage() {
                         Chat with {chatUserFirstName}
                     </h2>
 
-                    <section className="flex h-[704px] w-full flex-col bg-white p-6 shadow-md">
+                    <section className="flex h-[72vh] min-h-[400px] w-full flex-col bg-white p-6 shadow-md">
                         <div
                             ref={messageContainerRef}
                             onScroll={handleMessagesScroll}
@@ -463,7 +495,7 @@ export default function MemberPage() {
                                     const isPatient =
                                         message.senderId === userId;
                                     const senderLabel = isSent
-                                        ? null
+                                        ? currentUserName || "You"
                                         : isPatient
                                           ? chatUserFullName
                                           : (senderProfiles[message.senderId] ??
