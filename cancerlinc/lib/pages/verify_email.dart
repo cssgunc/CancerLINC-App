@@ -1,131 +1,43 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/pages/login_page.dart';
-import 'package:cancerlinc/pages/change_password.dart';
+import 'package:cancerlinc/services/auth.dart';
+import 'package:cancerlinc/components/bottom_bar.dart';
 
-// class VerifyEmail extends StatefulWidget {
-//   final String email; //hold email
-//   const VerifyEmail({Key? key, required this.email}) : super(key: key);
-//
-//   @override
-//   State<VerifyEmail> createState() => _VerifyEmailState();
-// }
-//
-// class _VerifyEmailState extends State<VerifyEmail> {
-//   final TextEditingController _codeController = TextEditingController();
-//
-//   @override
-//   void dispose() {
-//     _codeController.dispose();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       body: SafeArea(
-//         child: SingleChildScrollView(
-//           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               GestureDetector(
-//               onTap: () {
-//                 Navigator.popUntil(
-//                   context,
-//                   ModalRoute.withName('LoginPage'),
-//                 );
-//               },
-//               child: const Padding(
-//                 padding: EdgeInsets.only(top: 30.0),
-//                 child: Row(children: [
-//                   const Padding(padding: EdgeInsets.only(left: 8.0)),
-//                   Icon(Icons.arrow_back_ios),
-//                   Text("Back to login")]),
-//               ),
-//             ),
-//               Center(
-//                 child: Column(
-//                   children: [
-//                     const SizedBox(height: 8),
-//                     const Text('Verify Email', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600)),
-//                     const SizedBox(height: 16),
-//                     Text(
-//                       'A verification code was sent to\n${widget.email}. Please enter it below.',
-//                       textAlign: TextAlign.center,
-//                       style: const TextStyle(fontSize: 14, color: Colors.black54),
-//                     ),
-//                     const SizedBox(height: 8),
-//                     const Text('\nThe code will expire in 10 minutes.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.black54)),
-//                   ],
-//                 ),
-//               ),
-//
-//               const SizedBox(height: 32),
-//               const Text('Enter Verification Code', style: TextStyle(fontSize: 13)),
-//               const SizedBox(height: 8),
-//               TextField(
-//                 controller: _codeController,
-//                 decoration: InputDecoration(
-//                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-//                   contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-//                   filled: true,
-//                   fillColor: Colors.white,
-//                 ),
-//               ),
-//
-//               const SizedBox(height: 16),
-//               SizedBox(
-//                 width: double.infinity,
-//                 height: 46,
-//                 child: ElevatedButton(
-//                   onPressed: () {
-//                     final code = _codeController.text.trim();
-//                     if (code.isEmpty) {
-//                       ScaffoldMessenger.of(context).showSnackBar(
-//                         const SnackBar(content: Text('Please enter the verification code')),
-//                       );
-//                       return;
-//                     }
-//
-//                     Navigator.pushReplacement(
-//                       context,
-//                       MaterialPageRoute(builder: (context) => ChangePasswordPage(code: code)),
-//                     );
-//                   },
-//                   style: ElevatedButton.styleFrom(
-//                     backgroundColor: Colors.black,
-//                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-//                   ),
-//                   child: const Text('CONTINUE', style: TextStyle(color: Colors.white)),
-//                 ),
-//               ),
-//
-//               const SizedBox(height: 16),
-//               SizedBox(
-//                 height: 46,
-//                 width: double.infinity,
-//                 child: ElevatedButton(
-//                   onPressed: () {print("Send Code Again");},
-//                   style: ElevatedButton.styleFrom(
-//                     backgroundColor: Colors.black,
-//                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-//                   ),
-//                   child: const Text('RESEND CODE', style: TextStyle(color: Colors.white)),
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
+class VerifyEmail extends StatefulWidget {
+  final String email;
+  final bool isSignup;
+  const VerifyEmail({Key? key, required this.email, this.isSignup = false}) : super(key: key);
 
+  @override
+  State<VerifyEmail> createState() => _VerifyEmailState();
+}
 
+class _VerifyEmailState extends State<VerifyEmail> {
+  Timer? _timer;
+  final AuthService _authService = AuthService();
 
-class VerifyEmail extends StatelessWidget {
-  final dynamic email;
-  const VerifyEmail({Key? key, required this.email}) : super(key: key);
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isSignup) {
+      _timer = Timer.periodic(const Duration(seconds: 3), (_) async {
+        await FirebaseAuth.instance.currentUser?.reload();
+        if (FirebaseAuth.instance.currentUser?.emailVerified == true) {
+          _timer?.cancel();
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomBar()));
+          }
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -136,20 +48,15 @@ class VerifyEmail extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               GestureDetector(
-                onTap: () {
-                  Navigator.pop(context);
-                },
+                onTap: () => Navigator.pop(context),
                 child: const Padding(
                   padding: EdgeInsets.only(top: 30.0),
-                  child: Row(
-                    children: [
-                      Padding(padding: EdgeInsets.only(left: 8.0)),
-                      Icon(Icons.arrow_back_ios),
-                      Text("Back"),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Padding(padding: EdgeInsets.only(left: 8.0)),
+                    Icon(Icons.arrow_back_ios),
+                    Text("Back"),
+                  ]),
                 ),
               ),
 
@@ -157,47 +64,61 @@ class VerifyEmail extends StatelessWidget {
 
               Center(
                 child: Column(
-                  children: const [
+                  children: [
                     Text(
-                      'Email Sent',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      widget.isSignup ? 'Verify Your Email' : 'Email Sent',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
-                      'Email sent. Please check your inbox\n'
-                          'to change your password.',
+                      widget.isSignup
+                          ? 'A verification link was sent to\n${widget.email}.\nClick the link in your inbox to continue.'
+                          : 'Email sent. Please check your inbox\nto change your password.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.black54),
                     ),
+                    if (widget.isSignup) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Can't find it? Check your spam or junk folder.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.black38),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('Waiting for verification...', style: TextStyle(fontSize: 13, color: Colors.black38)),
+                    ],
                   ],
                 ),
               ),
 
               const SizedBox(height: 40),
 
+              if (widget.isSignup)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton(
+                      onPressed: () => _authService.sendEmailVerification(),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text('RESEND EMAIL', style: TextStyle(color: Colors.black)),
+                    ),
+                  ),
+                ),
+
               SizedBox(
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
-                  },
+                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text(
-                    'RETURN TO LOGIN',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  child: const Text('RETURN TO LOGIN', style: TextStyle(color: Colors.white)),
                 ),
               ),
             ],

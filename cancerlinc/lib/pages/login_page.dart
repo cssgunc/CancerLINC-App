@@ -187,13 +187,18 @@ class LoginPage extends StatefulWidget {
                           _emailController.text.trim(),
                           _passwordController.text.trim(),
                         );
+                        if (userCredential.user?.emailVerified == false) {
+                          await _authService.signOut();
+                          if (mounted) setState(() => _errorMessage = 'Please verify your email before logging in.');
+                          return;
+                        }
                         if (mounted) {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => const BottomBar()),
                           );
                         }
-                      } on FirebaseAuthException catch (e) {
+                      } on FirebaseAuthException {
                         setState(() {
                           _errorMessage = 'Incorrect Email or Password Entered';
                         });
