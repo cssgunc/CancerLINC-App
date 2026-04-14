@@ -12,11 +12,17 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
 
+    function isStaff() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["social_worker", "admin"];
+    }
+
     function canReadUserProfile(userId) {
       return signedIn()
         && (
           request.auth.uid == userId
           || isChatParticipant(userId)
+          || isStaff()
         );
     }
 

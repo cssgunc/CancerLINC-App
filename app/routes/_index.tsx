@@ -1,61 +1,37 @@
-//This is the home page
-import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
-import { useAuth } from "~/services/firebase_provider";
+import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router";
+import {
+    collection,
+    getCountFromServer,
+    getDocs,
+    type DocumentSnapshot,
+    limit,
+    orderBy,
+    query,
+    startAfter,
+    where,
+} from "firebase/firestore";
+import { db } from "~/services/firebase_app";
+// search state lives in the URL so it survives navigating back from a member page
 
-// --- Temporary JSON data ---
-type Status = "Active" | "Follow-up" | "Pending";
-type SortKey = "name" | "socialWorker" | "lastContact" | "status";
+// --- Types ---
+type Status = "active" | "follow-up" | "pending";
 
 type Patient = {
-    id: string;
+    id: string; // Firestore uid
     name: string;
     socialWorker: string;
-    lastContact: string; // ISO date (international standard)
+    lastContact: string | null; // ISO date or null if no contact yet
     status: Status;
 };
 
-// Sample patient data
-const PATIENTS: Patient[] = [
-    {
-        id: "1",
-        name: "David Thompson",
-        socialWorker: "Emily Chen",
-        lastContact: "2025-10-18",
-        status: "Active",
-    },
-    {
-        id: "2",
-        name: "James Brown",
-        socialWorker: "Jake Morrison",
-        lastContact: "2025-10-17",
-        status: "Follow-up",
-    },
-    {
-        id: "3",
-        name: "Jennifer Wilson",
-        socialWorker: "Emily Chen",
-        lastContact: "2025-10-19",
-        status: "Follow-up",
-    },
-    {
-        id: "4",
-        name: "Linda Anderson",
-        socialWorker: "Jake Morrison",
-        lastContact: "2025-10-21",
-        status: "Pending",
-    },
-    {
-        id: "5",
-        name: "Maria Garcia",
-        socialWorker: "Sarah Thompson",
-        lastContact: "2025-10-24",
-        status: "Active",
-    },
-];
+// --- Constants ---
+const PAGE_SIZE = 50;
 
 // --- Utilities ---
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+    if (!iso) return "—";
     const d = new Date(iso);
     return d.toLocaleDateString("en-US", {
         month: "short",
@@ -64,142 +40,188 @@ function formatDate(iso: string) {
     });
 }
 
-function statusStyles(status: Status) {
-    // recommended by someone on Figma document
+function statusLabel(status: Status) {
     switch (status) {
-        case "Active":
+        case "active":
+            return "Active";
+        case "follow-up":
+            return "Follow-up";
+        case "pending":
+            return "Pending";
+    }
+}
+
+function statusStyles(status: Status) {
+    switch (status) {
+        case "active":
             return "bg-green-50 text-green-700 ring-1 ring-green-200";
-        case "Follow-up":
+        case "follow-up":
             return "bg-yellow-50 text-yellow-800 ring-1 ring-yellow-200";
-        case "Pending":
+        case "pending":
             return "bg-gray-100 text-gray-700 ring-1 ring-gray-200";
     }
 }
 
+// Firestore prefix-range search: matches names that start with the query string
+function prefixRange(s: string): [string, string] {
+    const lower = s.toLowerCase();
+    const upper =
+        lower.slice(0, -1) +
+        String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
+    return [lower, upper];
+}
+
 // --- Component ---
 export default function HomePage() {
-    const { user, logout } = useAuth();
-    const [query, setQuery] = useState("");
-    const [sortKey, setSortKey] = useState<SortKey>("name");
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
-    // Compute totals
-    const totals = useMemo(() => {
-        const total = PATIENTS.length;
-        const active = PATIENTS.filter((p) => p.status === "Active").length;
-        const followUps = PATIENTS.filter(
-            (p) => p.status === "Follow-up"
-        ).length;
-        return { total, active, followUps };
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Stat card counts (from aggregation queries — independent of pagination)
+    const [totalCount, setTotalCount] = useState<number | null>(null);
+    const [activeCount, setActiveCount] = useState<number | null>(null);
+    const [followUpCount, setFollowUpCount] = useState<number | null>(null);
+
+    // Pagination cursors: stack of "last doc of each page" so we can go back
+    const cursorStack = useRef<DocumentSnapshot[]>([]);
+    const [page, setPage] = useState(0); // 0-indexed current page
+    const [hasNextPage, setHasNextPage] = useState(false);
+
+    // Search value comes from the URL (?q=) — written by the shared TopBar in app_layout
+    const query2 = searchParams.get("q") ?? "";
+    const [debouncedQuery, setDebouncedQuery] = useState(query2);
+
+    // Debounce the URL search param into the Firestore query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedQuery(query2.trim().toLowerCase());
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [query2]);
+
+    // Fetch stat card counts once on mount
+    useEffect(() => {
+        const usersRef = collection(db, "users");
+        Promise.all([
+            getCountFromServer(query(usersRef, where("role", "==", "patient"))),
+            getCountFromServer(
+                query(
+                    usersRef,
+                    where("role", "==", "patient"),
+                    where("status", "==", "active")
+                )
+            ),
+            getCountFromServer(
+                query(
+                    usersRef,
+                    where("role", "==", "patient"),
+                    where("status", "==", "follow-up")
+                )
+            ),
+        ])
+            .then(([total, active, followUp]) => {
+                setTotalCount(total.data().count);
+                setActiveCount(active.data().count);
+                setFollowUpCount(followUp.data().count);
+            })
+            .catch(() => {
+                // Non-critical — stat cards just stay blank
+            });
     }, []);
 
-    // Filtered patients
-    const filtered = useMemo(() => {
-        if (!query.trim()) return PATIENTS;
-        const q = query.toLowerCase();
-        return PATIENTS.filter(
-            (p) =>
-                p.name.toLowerCase().includes(q) ||
-                p.socialWorker.toLowerCase().includes(q)
-        );
-    }, [query]);
+    // Fetch patients whenever page or search changes
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        setError(null);
 
-    // Sorted patients
-    const sorted = useMemo(() => {
-        const copy = [...filtered];
+        async function fetchPatients() {
+            try {
+                const usersRef = collection(db, "users");
+                const constraints: Parameters<typeof query>[1][] = [
+                    where("role", "==", "patient"),
+                ];
 
-        const statusOrder: Record<Status, number> = {
-            Active: 0,
-            "Follow-up": 1,
-            Pending: 2,
-        };
+                if (debouncedQuery.length > 0) {
+                    // Prefix search on lastName (case-insensitive via stored lowercase field)
+                    const [lo, hi] = prefixRange(debouncedQuery);
+                    constraints.push(where("lastNameLower", ">=", lo));
+                    constraints.push(where("lastNameLower", "<", hi));
+                    constraints.push(orderBy("lastNameLower"));
+                } else {
+                    constraints.push(orderBy("lastName"));
+                }
 
-        // Function to get the value to sort by
-        const val = (p: Patient, key: SortKey): string | number => {
-            switch (key) {
-                case "lastContact":
-                    return new Date(p.lastContact).getTime();
-                case "status":
-                    return statusOrder[p.status];
-                case "name":
-                    return p.name.toLowerCase();
-                case "socialWorker":
-                    return p.socialWorker.toLowerCase();
+                // Pagination cursor
+                if (page > 0 && cursorStack.current[page - 1]) {
+                    constraints.push(startAfter(cursorStack.current[page - 1]));
+                }
+
+                constraints.push(limit(PAGE_SIZE + 1)); // fetch one extra to detect next page
+
+                const snap = await getDocs(query(usersRef, ...constraints));
+
+                if (cancelled) return;
+
+                const hasNext = snap.docs.length > PAGE_SIZE;
+                const docs = hasNext
+                    ? snap.docs.slice(0, PAGE_SIZE)
+                    : snap.docs;
+
+                // Save the last doc of this page as cursor (only once per page)
+                if (docs.length > 0 && cursorStack.current.length <= page) {
+                    cursorStack.current[page] = docs[docs.length - 1];
+                }
+
+                const results: Patient[] = docs.map((d) => {
+                    const data = d.data();
+                    const firstName = data.firstName ?? "";
+                    const lastName = data.lastName ?? "";
+                    const ts = data.lastContactTimestamp;
+                    return {
+                        id: d.id,
+                        name: `${firstName} ${lastName}`.trim() || data.email,
+                        socialWorker: data.assignedSocialWorkerName ?? "—",
+                        lastContact: ts
+                            ? ts.toDate().toISOString().split("T")[0]
+                            : null,
+                        status: (data.status as Status) ?? "pending",
+                    };
+                });
+
+                setPatients(results);
+                setHasNextPage(hasNext);
+            } catch (e: unknown) {
+                if (!cancelled) {
+                    setError("Failed to load patients. Please try again.");
+                    console.error(e);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-        };
-
-        copy.sort((a, b) => {
-            const av = val(a, sortKey);
-            const bv = val(b, sortKey);
-            if (av < bv) return sortDir === "asc" ? -1 : 1;
-            if (av > bv) return sortDir === "asc" ? 1 : -1;
-            return 0;
-        });
-
-        return copy;
-    }, [filtered, sortDir, sortKey]);
-
-    // Toggle sort direction
-    function toggleSort(key: SortKey) {
-        if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        else {
-            setSortKey(key);
-            setSortDir("asc");
         }
+
+        fetchPatients();
+        return () => {
+            cancelled = true;
+        };
+    }, [page, debouncedQuery]);
+
+    // Reset to page 0 when search changes
+    useEffect(() => {
+        cursorStack.current = [];
+        setPage(0);
+    }, [debouncedQuery]);
+
+    function goToProfile(id: string) {
+        navigate(`/member/${encodeURIComponent(id)}`);
     }
 
-    // Sort Icon Component (uses lucide icons for up/down arrows)
-    const SortIcon = ({ active }: { active: boolean }) =>
-        active ? (
-            sortDir === "asc" ? (
-                <ChevronUp className="ml-1 h-4 w-4" />
-            ) : (
-                <ChevronDown className="ml-1 h-4 w-4" />
-            )
-        ) : (
-            <span className="ml-1 h-4 w-4 inline-block" />
-        );
-
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Top Bar */}
-            <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
-                <div className="container mx-auto flex items-center gap-4 px-6 py-4">
-                    {/* Logo */}
-                    <div className="flex items-center gap-3">
-                        <img
-                            src="/CancerLINC-Logo-1.png"
-                            alt="CancerLINC Logo"
-                            className="w-16 mb-4"
-                        />
-                    </div>
-
-                    {/* Search */}
-                    <div className="relative mx-4 flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search patients or social workers..."
-                            className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
-                        />
-                    </div>
-
-                    {/* Welcome / Logout */}
-                    <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
-                        <span>Welcome, {user?.displayName}</span>{" "}
-                        <button
-                            type="button"
-                            onClick={logout}
-                            className="font-medium text-gray-900 underline underline-offset-2"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main */}
+        <>
             <main className="container mx-auto px-6 py-8">
                 <h1 className="text-2xl font-semibold text-gray-900">
                     Patient Dashboard
@@ -212,12 +234,9 @@ export default function HomePage() {
 
                 {/* Stat Cards */}
                 <section className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <StatCard label="Total Patients" value={totals.total} />
-                    <StatCard label="Active Cases" value={totals.active} />
-                    <StatCard
-                        label="Follow-ups Needed"
-                        value={totals.followUps}
-                    />
+                    <StatCard label="Total Patients" value={totalCount} />
+                    <StatCard label="Active Cases" value={activeCount} />
+                    <StatCard label="Follow-ups Needed" value={followUpCount} />
                 </section>
 
                 {/* Table */}
@@ -227,45 +246,13 @@ export default function HomePage() {
                             <thead className="bg-gray-50 text-left text-sm text-gray-600 select-none">
                                 <tr>
                                     <th className="px-6 py-4 font-medium">
-                                        <button
-                                            onClick={() => toggleSort("name")}
-                                            className={`inline-flex items-center hover:text-gray-900 ${sortKey === "name" ? "underline underline-offset-2 decoration-1 font-bold" : ""}`}
-                                        >
-                                            Patient Name
-                                            <SortIcon
-                                                active={sortKey === "name"}
-                                            />
-                                        </button>
+                                        Patient Name
                                     </th>
                                     <th className="px-6 py-4 font-medium">
-                                        <button
-                                            onClick={() =>
-                                                toggleSort("socialWorker")
-                                            }
-                                            className={`inline-flex items-center hover:text-gray-900 ${sortKey === "socialWorker" ? "underline underline-offset-2 decoration-1 font-bold" : ""}`}
-                                        >
-                                            Assigned Social Worker
-                                            <SortIcon
-                                                active={
-                                                    sortKey === "socialWorker"
-                                                }
-                                            />
-                                        </button>
+                                        Assigned Social Worker
                                     </th>
                                     <th className="px-6 py-4 font-medium">
-                                        <button
-                                            onClick={() =>
-                                                toggleSort("lastContact")
-                                            }
-                                            className={`inline-flex items-center hover:text-gray-900 ${sortKey === "lastContact" ? "underline underline-offset-2 decoration-1 font-bold" : ""}`}
-                                        >
-                                            Last Contact
-                                            <SortIcon
-                                                active={
-                                                    sortKey === "lastContact"
-                                                }
-                                            />
-                                        </button>
+                                        Last Contact
                                     </th>
                                     <th className="px-6 py-4 font-medium">
                                         Status
@@ -276,61 +263,125 @@ export default function HomePage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-sm">
-                                {sorted.map((p) => (
-                                    <tr
-                                        key={p.id}
-                                        className="hover:bg-gray-50/60"
-                                    >
-                                        <td className="px-6 py-4 font-medium text-gray-900">
-                                            <button className="text-left hover:underline">
-                                                {p.name}
-                                            </button>
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-700">
-                                            {p.socialWorker}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-700">
-                                            {formatDate(p.lastContact)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span
-                                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${statusStyles(
-                                                    p.status
-                                                )}`}
-                                            >
-                                                {p.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <button
-                                                onClick={() =>
-                                                    alert(
-                                                        `Open profile for ${p.name}`
-                                                    )
-                                                }
-                                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
-                                            >
-                                                View Profile
-                                            </button>
+                                {loading ? (
+                                    <tr>
+                                        <td
+                                            colSpan={5}
+                                            className="px-6 py-12 text-center text-gray-400"
+                                        >
+                                            <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                                         </td>
                                     </tr>
-                                ))}
+                                ) : error ? (
+                                    <tr>
+                                        <td
+                                            colSpan={5}
+                                            className="px-6 py-10 text-center text-sm text-red-600"
+                                        >
+                                            {error}
+                                        </td>
+                                    </tr>
+                                ) : patients.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={5}
+                                            className="px-6 py-10 text-center text-sm text-gray-400"
+                                        >
+                                            No patients found.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    patients.map((p) => (
+                                        <tr
+                                            key={p.id}
+                                            className="hover:bg-gray-50/60"
+                                        >
+                                            <td className="px-6 py-4 font-medium text-gray-900">
+                                                <button
+                                                    onClick={() =>
+                                                        goToProfile(p.id)
+                                                    }
+                                                    className="text-left hover:underline"
+                                                >
+                                                    {p.name}
+                                                </button>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-700">
+                                                {p.socialWorker}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-700">
+                                                {formatDate(p.lastContact)}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span
+                                                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${statusStyles(p.status)}`}
+                                                >
+                                                    {statusLabel(p.status)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <button
+                                                    onClick={() =>
+                                                        goToProfile(p.id)
+                                                    }
+                                                    className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
+                                                >
+                                                    View Profile
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination */}
+                    {!loading && !error && (totalCount ?? 0) > PAGE_SIZE && (
+                        <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 text-sm text-gray-600">
+                            <span>
+                                Showing {page * PAGE_SIZE + 1}–
+                                {page * PAGE_SIZE + patients.length}
+                                {totalCount != null
+                                    ? ` of ${totalCount}`
+                                    : ""}{" "}
+                                patients
+                            </span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPage((p) => p - 1)}
+                                    disabled={page === 0}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    ← Previous
+                                </button>
+                                <button
+                                    onClick={() => setPage((p) => p + 1)}
+                                    disabled={!hasNextPage}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Next →
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </section>
             </main>
-        </div>
+        </>
     );
 }
 
 // --- Small components ---
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value }: { label: string; value: number | null }) {
     return (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="text-sm text-gray-600">{label}</div>
             <div className="mt-3 text-2xl font-semibold text-gray-900">
-                {value}
+                {value == null ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+                ) : (
+                    value
+                )}
             </div>
         </div>
     );

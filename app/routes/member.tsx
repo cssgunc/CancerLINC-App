@@ -450,7 +450,7 @@ export default function MemberPage() {
 
     return (
         <div
-            className="min-h-screen bg-white px-8 py-10 text-black"
+            className="px-8 py-10 text-black"
             style={{ fontFamily: "Inter, sans-serif" }}
         >
             <h1 className="text-center text-[32px] font-medium leading-tight text-black">
