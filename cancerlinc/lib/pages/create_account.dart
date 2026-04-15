@@ -1,13 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/services/auth.dart';
 
-import '../components/bottom_bar.dart';
-
-
-import '../components/bottom_bar.dart';
+import 'package:cancerlinc/pages/verify_email.dart';
 
 
 
@@ -93,11 +89,12 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+      await _authService.sendEmailVerification();
 
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const BottomBar()),
+          MaterialPageRoute(builder: (context) => VerifyEmail(email: _emailController.text.trim(), isSignup: true)),
         );
       }
 
