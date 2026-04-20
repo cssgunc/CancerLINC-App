@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Loader2, SlidersHorizontal } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
     collection,
@@ -25,6 +25,9 @@ type Patient = {
     lastContact: number | null; // epoch millis or null if no contact yet
     status: Status;
 };
+
+type SortField = "name" | "socialWorker" | "lastContact";
+type SortDirection = "asc" | "desc";
 
 // --- Constants ---
 const PAGE_SIZE = 50;
@@ -100,6 +103,14 @@ export default function HomePage() {
     const [patients, setPatients] = useState<Patient[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [socialWorkerOptions, setSocialWorkerOptions] = useState<string[]>(
+        []
+    );
+    const [socialWorkerFilter, setSocialWorkerFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+    const [sortField, setSortField] = useState<SortField>("lastContact");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
     // Stat card counts (from aggregation queries — independent of pagination)
     const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -151,6 +162,45 @@ export default function HomePage() {
             .catch(() => {
                 // Non-critical — stat cards just stay blank
             });
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadSocialWorkers() {
+            try {
+                const usersRef = collection(db, "users");
+                const snapshot = await getDocs(
+                    query(
+                        usersRef,
+                        where("role", "==", "social_worker"),
+                        orderBy("lastName"),
+                        limit(100)
+                    )
+                );
+                if (cancelled) return;
+
+                const names = snapshot.docs
+                    .map((doc) => {
+                        const data = doc.data();
+                        return (
+                            `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim() ||
+                            data.email ||
+                            "Unknown"
+                        );
+                    })
+                    .filter(Boolean);
+
+                setSocialWorkerOptions([...new Set(names)]);
+            } catch {
+                if (!cancelled) setSocialWorkerOptions([]);
+            }
+        }
+
+        void loadSocialWorkers();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     // Fetch patients whenever page or search changes
@@ -362,6 +412,52 @@ export default function HomePage() {
         setPage(0);
     }, [debouncedQuery]);
 
+    const visiblePatients = useMemo(() => {
+        const filtered = patients.filter((patient) => {
+            if (
+                socialWorkerFilter !== "all" &&
+                patient.socialWorker !== socialWorkerFilter
+            ) {
+                return false;
+            }
+
+            if (statusFilter !== "all" && patient.status !== statusFilter) {
+                return false;
+            }
+
+            return true;
+        });
+
+        return [...filtered].sort((a, b) => {
+            let comparison = 0;
+
+            if (sortField === "lastContact") {
+                comparison = (a.lastContact ?? 0) - (b.lastContact ?? 0);
+            } else if (sortField === "name") {
+                comparison = a.name.localeCompare(b.name);
+            } else {
+                comparison = a.socialWorker.localeCompare(b.socialWorker);
+            }
+
+            return sortDirection === "asc" ? comparison : -comparison;
+        });
+    }, [patients, socialWorkerFilter, sortDirection, sortField, statusFilter]);
+
+    function handleSort(nextField: SortField) {
+        if (sortField === nextField) {
+            setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+            return;
+        }
+
+        setSortField(nextField);
+        setSortDirection(nextField === "lastContact" ? "desc" : "asc");
+    }
+
+    function sortLabel(field: SortField) {
+        if (sortField !== field) return "";
+        return sortDirection === "asc" ? "↑" : "↓";
+    }
+
     function goToProfile(id: string) {
         navigate(`/member/${encodeURIComponent(id)}`);
     }
@@ -386,25 +482,138 @@ export default function HomePage() {
                 </section>
 
                 {/* Table */}
-                <section className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <section className="relative mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    {filtersOpen ? (
+                        <div className="absolute right-6 top-16 z-10 w-[min(92vw,620px)] rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-lg">
+                            <div className="flex flex-wrap items-end gap-4">
+                                <label className="flex min-w-[220px] flex-col gap-2 text-sm text-gray-600">
+                                    <span className="font-medium">
+                                        Assigned Social Worker
+                                    </span>
+                                    <select
+                                        value={socialWorkerFilter}
+                                        onChange={(e) =>
+                                            setSocialWorkerFilter(
+                                                e.target.value
+                                            )
+                                        }
+                                        className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+                                    >
+                                        <option value="all">
+                                            All social workers
+                                        </option>
+                                        {socialWorkerOptions.map((worker) => (
+                                            <option key={worker} value={worker}>
+                                                {worker}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="flex min-w-[180px] flex-col gap-2 text-sm text-gray-600">
+                                    <span className="font-medium">Status</span>
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) =>
+                                            setStatusFilter(
+                                                e.target.value as Status | "all"
+                                            )
+                                        }
+                                        className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+                                    >
+                                        <option value="all">
+                                            All statuses
+                                        </option>
+                                        <option value="active">Active</option>
+                                        <option value="follow-up">
+                                            Follow-up
+                                        </option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </label>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSocialWorkerFilter("all");
+                                        setStatusFilter("all");
+                                    }}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Reset Filters
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50 text-left text-sm text-gray-600 select-none">
                                 <tr>
                                     <th className="px-6 py-4 font-medium">
-                                        Patient Name
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSort("name")}
+                                            className="inline-flex items-center gap-1 hover:text-gray-900"
+                                        >
+                                            Patient Name
+                                            <span>{sortLabel("name")}</span>
+                                        </button>
                                     </th>
                                     <th className="px-6 py-4 font-medium">
-                                        Assigned Social Worker
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("socialWorker")
+                                            }
+                                            className="inline-flex items-center gap-1 hover:text-gray-900"
+                                        >
+                                            Assigned Social Worker
+                                            <span>
+                                                {sortLabel("socialWorker")}
+                                            </span>
+                                        </button>
                                     </th>
                                     <th className="px-6 py-4 font-medium">
-                                        Last Contact
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("lastContact")
+                                            }
+                                            className="inline-flex items-center gap-1 hover:text-gray-900"
+                                        >
+                                            Last Contact
+                                            <span>
+                                                {sortLabel("lastContact")}
+                                            </span>
+                                        </button>
                                     </th>
                                     <th className="px-6 py-4 font-medium">
                                         Status
                                     </th>
                                     <th className="px-6 py-4 font-medium">
-                                        Actions
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span>Actions</span>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setFiltersOpen(
+                                                        (open) => !open
+                                                    )
+                                                }
+                                                className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                                                aria-label="Open filters"
+                                            >
+                                                <SlidersHorizontal size={14} />
+                                                <ChevronDown
+                                                    size={14}
+                                                    className={`transition-transform ${
+                                                        filtersOpen
+                                                            ? "rotate-180"
+                                                            : ""
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
                                     </th>
                                 </tr>
                             </thead>
@@ -427,17 +636,18 @@ export default function HomePage() {
                                             {error}
                                         </td>
                                     </tr>
-                                ) : patients.length === 0 ? (
+                                ) : visiblePatients.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={5}
                                             className="px-6 py-10 text-center text-sm text-gray-400"
                                         >
-                                            No patients found.
+                                            No patients match the current
+                                            filters.
                                         </td>
                                     </tr>
                                 ) : (
-                                    patients.map((p) => (
+                                    visiblePatients.map((p) => (
                                         <tr
                                             key={p.id}
                                             className="hover:bg-gray-50/60"
