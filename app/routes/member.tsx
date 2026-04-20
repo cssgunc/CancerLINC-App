@@ -53,6 +53,7 @@ import { useAuth } from "~/services/firebase_provider";
 type ChatMessage = {
     id: string;
     senderId: string;
+    senderName: string;
     direction: "sent" | "received";
     messageType: "text" | "image";
     text: string;
@@ -227,7 +228,7 @@ export default function MemberPage() {
             const snapshot = await getDocs(
                 query(
                     collection(db, "users"),
-                    where("role", "==", "social_worker"),
+                    where("role", "in", ["social_worker", "admin"]),
                     limit(100)
                 )
             );
@@ -268,6 +269,7 @@ export default function MemberPage() {
         (messageDoc: QueryDocumentSnapshot<DocumentData>): ChatMessage => {
             const data = messageDoc.data() as {
                 senderId?: string;
+                senderName?: string;
                 content?: string;
                 messageType?: "text" | "image";
                 imageUrl?: string;
@@ -279,6 +281,7 @@ export default function MemberPage() {
             return {
                 id: messageDoc.id,
                 senderId: data.senderId ?? "",
+                senderName: data.senderName ?? "",
                 direction: data.senderId === user?.uid ? "sent" : "received",
                 messageType: data.messageType ?? "text",
                 text: data.content ?? "",
@@ -508,6 +511,8 @@ export default function MemberPage() {
             await sendChatMessageWithOptionalImage({
                 chatId,
                 senderId: user.uid,
+                senderName:
+                    currentUserName || user.displayName || user.email || "",
                 text: newMessage,
                 imageFile: selectedImage,
             });
@@ -633,7 +638,7 @@ export default function MemberPage() {
             className="flex h-full flex-col overflow-hidden px-4 pb-3 pt-5 text-black"
             style={{ fontFamily: "Inter, sans-serif" }}
         >
-            <div className="mx-auto flex w-[86vw] max-w-[1400px] flex-1 flex-col min-h-0 pb-2">
+            <div className="mx-auto flex w-[84vw] max-w-[1400px] flex-1 flex-col min-h-0 pb-2">
                 <section className="mb-5 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                     <button
                         type="button"
@@ -771,7 +776,7 @@ export default function MemberPage() {
                     <div className="flex w-[25vw] min-w-[260px] flex-col">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <h2 className="text-[24px] font-semibold leading-tight text-black">
-                                {chatUserFullName}&apos;s Referrals
+                                {chatUserFirstName}&apos;s Referrals
                             </h2>
                             <button
                                 className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
@@ -812,7 +817,7 @@ export default function MemberPage() {
                     {/* Chat column */}
                     <div className="flex w-[50vw] min-w-[360px] max-w-[600px] flex-col">
                         <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
-                            Chat with {chatUserFirstName}
+                            Chat with {chatUserFullName}
                         </h2>
 
                         <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
@@ -859,12 +864,17 @@ export default function MemberPage() {
                                             nextMessage.senderId !==
                                                 message.senderId;
                                         const senderLabel = isSent
-                                            ? currentUserName || "You"
+                                            ? currentUserName ||
+                                              message.senderName ||
+                                              "You"
                                             : isPatient
                                               ? chatUserFullName
-                                              : (senderProfiles[
+                                              : message.senderName ||
+                                                senderProfiles[
                                                     message.senderId
-                                                ] ?? message.senderId);
+                                                ] ||
+                                                message.senderId ||
+                                                "Unknown";
 
                                         return (
                                             <div

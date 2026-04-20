@@ -51,7 +51,7 @@ export async function signUpWithEmail(
         username: input.displayName ?? "",
         firstName: "",
         lastName: "",
-        role: "admin",
+        role: "social_worker",
         isVerified: cred.user.emailVerified,
         phoneNumber: "",
         hospital: "",

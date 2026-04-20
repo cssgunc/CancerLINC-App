@@ -22,6 +22,7 @@ import { db, storage } from "./firebase_app";
 export type SendChatMessageInput = {
     chatId: string;
     senderId: string;
+    senderName?: string;
     text?: string;
     imageFile?: File | null;
 };
@@ -80,6 +81,7 @@ export function validateChatImageFile(file: File) {
 export async function sendChatMessageWithOptionalImage({
     chatId,
     senderId,
+    senderName,
     text,
     imageFile,
 }: SendChatMessageInput) {
@@ -136,6 +138,7 @@ export async function sendChatMessageWithOptionalImage({
             batch.set(textMessageRef, {
                 messageId: textMessageRef.id,
                 senderId,
+                senderName: senderName ?? "",
                 content: trimmedText,
                 messageType: "text" satisfies ChatMessageKind,
                 clientBatchId,
@@ -149,6 +152,7 @@ export async function sendChatMessageWithOptionalImage({
             batch.set(imageMessageRef, {
                 messageId: imageMessageRef.id,
                 senderId,
+                senderName: senderName ?? "",
                 content: "",
                 messageType: "image" satisfies ChatMessageKind,
                 imageUrl: uploadedImageUrl,
