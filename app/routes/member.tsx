@@ -5,7 +5,13 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { ImagePlus, Send, X } from "lucide-react";
+import {
+    ChevronDown,
+    ImagePlus,
+    Send,
+    SlidersHorizontal,
+    X,
+} from "lucide-react";
 import { useParams } from "react-router";
 import ReferralCard from "~/components/ReferralCard";
 import ReferralFormDialog from "~/components/ReferralFormDialog";
@@ -29,6 +35,8 @@ import {
     query,
     startAfter,
     Timestamp,
+    updateDoc,
+    where,
 } from "firebase/firestore";
 import { db } from "~/services/firebase_app";
 import {
@@ -61,9 +69,33 @@ type UserProfile = {
     username?: string;
     firstName?: string;
     lastName?: string;
+    role?: "patient" | "social_worker" | "admin";
+    status?: "active" | "follow-up" | "pending";
+    assignedSocialWorkerId?: string;
+    assignedSocialWorkerName?: string;
+};
+
+type PatientStatus = "active" | "follow-up" | "pending";
+
+type SocialWorkerOption = {
+    id: string;
+    name: string;
 };
 
 const PAGE_SIZE = 20;
+const EASTERN_TIME_ZONE = "America/New_York";
+const PATIENT_STATUSES: PatientStatus[] = ["active", "follow-up", "pending"];
+
+function formatPersonName(profile?: Partial<UserProfile> | null) {
+    if (!profile) return "";
+    return (
+        `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() ||
+        profile.username ||
+        profile.email ||
+        profile.uid ||
+        ""
+    );
+}
 
 function formatMessageDateTime(timestamp?: Timestamp) {
     if (!timestamp) return "";
@@ -71,10 +103,13 @@ function formatMessageDateTime(timestamp?: Timestamp) {
     const datePart = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
+        timeZone: EASTERN_TIME_ZONE,
     });
     const timePart = date.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
+        timeZone: EASTERN_TIME_ZONE,
+        timeZoneName: "short",
     });
     return `${datePart} · ${timePart}`;
 }
@@ -86,7 +121,19 @@ export default function MemberPage() {
     const [chatUserProfile, setChatUserProfile] = useState<UserProfile | null>(
         null
     );
+    const [currentUserProfile, setCurrentUserProfile] =
+        useState<UserProfile | null>(null);
+    const [controlsOpen, setControlsOpen] = useState(false);
     const [currentUserName, setCurrentUserName] = useState<string>("");
+    const [socialWorkers, setSocialWorkers] = useState<SocialWorkerOption[]>(
+        []
+    );
+    const [selectedSocialWorkerId, setSelectedSocialWorkerId] = useState("");
+    const [selectedStatus, setSelectedStatus] =
+        useState<PatientStatus>("pending");
+    const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+    const [isSavingStatus, setIsSavingStatus] = useState(false);
+    const [memberActionError, setMemberActionError] = useState("");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -133,7 +180,12 @@ export default function MemberPage() {
             }
 
             const data = snapshot.data() as Omit<UserProfile, "uid">;
-            setChatUserProfile({ uid: snapshot.id, ...data });
+            const profile = { uid: snapshot.id, ...data };
+            setChatUserProfile(profile);
+            setSelectedStatus((data.status as PatientStatus) ?? "pending");
+            setSelectedSocialWorkerId(
+                data.assignedSocialWorkerId ?? user?.uid ?? ""
+            );
         }
 
         loadUserProfile().catch(() => {
@@ -143,7 +195,7 @@ export default function MemberPage() {
         return () => {
             isActive = false;
         };
-    }, [userId]);
+    }, [user?.uid, userId]);
 
     useEffect(() => {
         if (!user?.uid) return;
@@ -155,11 +207,9 @@ export default function MemberPage() {
             if (!isActive || !snapshot.exists()) return;
 
             const d = snapshot.data() as Omit<UserProfile, "uid">;
-            const name =
-                `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() ||
-                d.username ||
-                d.email ||
-                "";
+            const profile = { uid: snapshot.id, ...d };
+            const name = formatPersonName(profile);
+            setCurrentUserProfile(profile);
             setCurrentUserName(name);
         }
 
@@ -169,6 +219,50 @@ export default function MemberPage() {
             isActive = false;
         };
     }, [user?.uid]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        async function loadSocialWorkers() {
+            const snapshot = await getDocs(
+                query(
+                    collection(db, "users"),
+                    where("role", "==", "social_worker"),
+                    limit(100)
+                )
+            );
+            if (!isActive) return;
+
+            const options = snapshot.docs
+                .map((workerDoc) => {
+                    const data = workerDoc.data() as Omit<UserProfile, "uid">;
+                    return {
+                        id: workerDoc.id,
+                        name: formatPersonName({
+                            uid: workerDoc.id,
+                            ...data,
+                        }),
+                    };
+                })
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            setSocialWorkers(options);
+        }
+
+        loadSocialWorkers().catch(() => {
+            if (isActive) setSocialWorkers([]);
+        });
+
+        return () => {
+            isActive = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!chatUserProfile?.assignedSocialWorkerId && user?.uid) {
+            setSelectedSocialWorkerId(user.uid);
+        }
+    }, [chatUserProfile?.assignedSocialWorkerId, user?.uid]);
 
     const mapMessageDoc = useCallback(
         (messageDoc: QueryDocumentSnapshot<DocumentData>): ChatMessage => {
@@ -464,249 +558,470 @@ export default function MemberPage() {
         }
     }
 
+    async function handleAssignSocialWorker() {
+        if (!userId || !selectedSocialWorkerId) return;
+
+        const selectedWorker =
+            socialWorkers.find(
+                (worker) => worker.id === selectedSocialWorkerId
+            ) ??
+            (selectedSocialWorkerId === currentUserProfile?.uid
+                ? {
+                      id: currentUserProfile.uid,
+                      name: formatPersonName(currentUserProfile),
+                  }
+                : null);
+
+        if (!selectedWorker) {
+            setMemberActionError("Select a social worker before assigning.");
+            return;
+        }
+
+        setMemberActionError("");
+        setIsSavingAssignment(true);
+
+        try {
+            await updateDoc(doc(db, "users", userId), {
+                assignedSocialWorkerId: selectedWorker.id,
+                assignedSocialWorkerName: selectedWorker.name,
+            });
+            setChatUserProfile((current) =>
+                current
+                    ? {
+                          ...current,
+                          assignedSocialWorkerId: selectedWorker.id,
+                          assignedSocialWorkerName: selectedWorker.name,
+                      }
+                    : current
+            );
+        } catch {
+            setMemberActionError(
+                "Unable to assign the social worker right now. Please try again."
+            );
+        } finally {
+            setIsSavingAssignment(false);
+        }
+    }
+
+    async function handleStatusChange(nextStatus: PatientStatus) {
+        if (!userId || nextStatus === selectedStatus) return;
+
+        const previousStatus = selectedStatus;
+        setMemberActionError("");
+        setSelectedStatus(nextStatus);
+        setIsSavingStatus(true);
+
+        try {
+            await updateDoc(doc(db, "users", userId), {
+                status: nextStatus,
+            });
+            setChatUserProfile((current) =>
+                current ? { ...current, status: nextStatus } : current
+            );
+        } catch {
+            setSelectedStatus(previousStatus);
+            setMemberActionError(
+                "Unable to update the patient status right now. Please try again."
+            );
+        } finally {
+            setIsSavingStatus(false);
+        }
+    }
+
     return (
         <div
             className="flex h-full flex-col overflow-hidden px-4 pb-3 pt-5 text-black"
             style={{ fontFamily: "Inter, sans-serif" }}
         >
-            <div className="mx-auto flex w-full max-w-[1400px] flex-1 items-stretch justify-center gap-6 min-h-0 pb-2">
-                {/* Referrals column */}
-                <div className="flex w-[25vw] min-w-[260px] flex-col">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                        <h2 className="text-[24px] font-semibold leading-tight text-black">
-                            {chatUserFullName}&apos;s Referrals
-                        </h2>
-                        <button
-                            className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
-                            onClick={() => {
-                                setEditingReferral(null);
-                                setReferralDialogMode("add");
-                            }}
-                        >
-                            + Add
-                        </button>
+            <div className="mx-auto flex w-[86vw] max-w-[1400px] flex-1 flex-col min-h-0 pb-2">
+                <section className="mb-5 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+                    <button
+                        type="button"
+                        onClick={() => setControlsOpen((open) => !open)}
+                        className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 text-left"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F3F4F6] text-[#4B5563]">
+                                <SlidersHorizontal size={18} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                                    Patient Controls
+                                </p>
+                                <p className="text-sm text-[#4B5563]">
+                                    {chatUserProfile?.assignedSocialWorkerName ||
+                                        "No social worker assigned"}{" "}
+                                    · {selectedStatus}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {memberActionError ? (
+                                <span className="text-sm text-[#B42318]">
+                                    {memberActionError}
+                                </span>
+                            ) : null}
+                            <ChevronDown
+                                size={18}
+                                className={`transition-transform ${
+                                    controlsOpen ? "rotate-180" : ""
+                                }`}
+                            />
+                        </div>
+                    </button>
+
+                    {controlsOpen ? (
+                        <div className="border-t border-[#E5E7EB] px-5 py-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                                        Assigned Social Worker
+                                    </span>
+                                    <select
+                                        value={selectedSocialWorkerId}
+                                        onChange={(e) =>
+                                            setSelectedSocialWorkerId(
+                                                e.target.value
+                                            )
+                                        }
+                                        className="min-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-green-600"
+                                        disabled={isSavingAssignment}
+                                    >
+                                        <option value="">
+                                            Select social worker
+                                        </option>
+                                        {currentUserProfile?.uid &&
+                                        !socialWorkers.some(
+                                            (worker) =>
+                                                worker.id ===
+                                                currentUserProfile.uid
+                                        ) ? (
+                                            <option
+                                                value={currentUserProfile.uid}
+                                            >
+                                                {formatPersonName(
+                                                    currentUserProfile
+                                                ) || "Current user"}
+                                            </option>
+                                        ) : null}
+                                        {socialWorkers.map((worker) => (
+                                            <option
+                                                key={worker.id}
+                                                value={worker.id}
+                                            >
+                                                {worker.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void handleAssignSocialWorker()
+                                        }
+                                        disabled={
+                                            isSavingAssignment ||
+                                            !selectedSocialWorkerId
+                                        }
+                                        className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isSavingAssignment
+                                            ? "Saving..."
+                                            : "Assign"}
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                                        Patient Status
+                                    </span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {PATIENT_STATUSES.map((status) => {
+                                            const isActiveStatus =
+                                                selectedStatus === status;
+                                            return (
+                                                <button
+                                                    key={status}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void handleStatusChange(
+                                                            status
+                                                        )
+                                                    }
+                                                    disabled={isSavingStatus}
+                                                    className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                                                        isActiveStatus
+                                                            ? "bg-black text-white"
+                                                            : "bg-[#F3F4F6] text-[#4B5563] hover:bg-[#E5E7EB]"
+                                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                                >
+                                                    {status}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                </section>
+
+                <div className="flex flex-1 items-stretch justify-center gap-6 min-h-0">
+                    {/* Referrals column */}
+                    <div className="flex w-[25vw] min-w-[260px] flex-col">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <h2 className="text-[24px] font-semibold leading-tight text-black">
+                                {chatUserFullName}&apos;s Referrals
+                            </h2>
+                            <button
+                                className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
+                                onClick={() => {
+                                    setEditingReferral(null);
+                                    setReferralDialogMode("add");
+                                }}
+                            >
+                                + Add
+                            </button>
+                        </div>
+
+                        <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+                            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+                                {referrals.length === 0 ? (
+                                    <p className="text-sm text-gray-500">
+                                        No referrals found.
+                                    </p>
+                                ) : (
+                                    referrals.map((referral) => (
+                                        <ReferralCard
+                                            key={referral.id}
+                                            referral={referral}
+                                            onEdit={() => {
+                                                setEditingReferral(referral);
+                                                setReferralDialogMode("edit");
+                                            }}
+                                            onDelete={(id) =>
+                                                void deleteReferral(userId, id)
+                                            }
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </section>
                     </div>
 
-                    <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
-                        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-                            {referrals.length === 0 ? (
-                                <p className="text-sm text-gray-500">
-                                    No referrals found.
-                                </p>
-                            ) : (
-                                referrals.map((referral) => (
-                                    <ReferralCard
-                                        key={referral.id}
-                                        referral={referral}
-                                        onEdit={() => {
-                                            setEditingReferral(referral);
-                                            setReferralDialogMode("edit");
-                                        }}
-                                        onDelete={(id) =>
-                                            void deleteReferral(userId, id)
-                                        }
-                                    />
-                                ))
-                            )}
-                        </div>
-                    </section>
-                </div>
+                    {/* Chat column */}
+                    <div className="flex w-[50vw] min-w-[360px] max-w-[600px] flex-col">
+                        <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
+                            Chat with {chatUserFirstName}
+                        </h2>
 
-                {/* Chat column */}
-                <div className="flex w-[40vw] min-w-[360px] max-w-[600px] flex-col">
-                    <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
-                        Chat with {chatUserFirstName}
-                    </h2>
-
-                    <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
-                        <div
-                            ref={messageContainerRef}
-                            onScroll={handleMessagesScroll}
-                            className="flex-1 overflow-y-auto pr-1"
-                        >
-                            {isLoadingOlder ? (
-                                <p className="pb-3 text-center text-sm text-[#999999]">
-                                    Loading older messages...
-                                </p>
-                            ) : null}
-
-                            {!isLoadingMessages && messages.length === 0 ? (
-                                <div className="flex h-full items-center justify-center">
-                                    <p className="text-sm text-[#999999]">
-                                        No messages yet!
-                                    </p>
-                                </div>
-                            ) : null}
-
-                            <div className="space-y-4 pb-6">
-                                {isLoadingMessages ? (
-                                    <p className="text-center text-sm text-[#999999]">
-                                        Loading messages...
+                        <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+                            <div
+                                ref={messageContainerRef}
+                                onScroll={handleMessagesScroll}
+                                className="flex-1 overflow-y-auto pr-1"
+                            >
+                                {isLoadingOlder ? (
+                                    <p className="pb-3 text-center text-sm text-[#999999]">
+                                        Loading older messages...
                                     </p>
                                 ) : null}
 
-                                {messages.map((message) => {
-                                    const isSent = message.direction === "sent";
-                                    const isPatient =
-                                        message.senderId === userId;
-                                    const senderLabel = isSent
-                                        ? currentUserName || "You"
-                                        : isPatient
-                                          ? chatUserFullName
-                                          : (senderProfiles[message.senderId] ??
-                                            message.senderId);
-
-                                    return (
-                                        <div
-                                            key={message.id}
-                                            className={`flex ${isSent ? "justify-end" : "justify-start"}`}
-                                        >
-                                            <div
-                                                className={`max-w-[75%] ${isSent ? "items-end" : "items-start"} flex flex-col`}
-                                            >
-                                                {senderLabel ? (
-                                                    <span className="mb-1 text-xs font-medium text-[#666666]">
-                                                        {senderLabel}
-                                                    </span>
-                                                ) : null}
-                                                <div
-                                                    className={`rounded-2xl px-4 py-3 text-[16px] ${isSent ? "bg-black text-white" : "bg-[#F0F0F0] text-black"}`}
-                                                >
-                                                    {message.messageType ===
-                                                    "image" ? (
-                                                        message.imageUrl ? (
-                                                            <img
-                                                                src={
-                                                                    message.imageUrl
-                                                                }
-                                                                alt="Chat attachment"
-                                                                className="max-h-72 rounded-xl object-cover"
-                                                            />
-                                                        ) : (
-                                                            <span>
-                                                                Image
-                                                                unavailable
-                                                            </span>
-                                                        )
-                                                    ) : (
-                                                        message.text
-                                                    )}
-                                                </div>
-                                                <span
-                                                    className={`mt-1 text-[16px] text-[#999999] ${isSent ? "text-right" : "text-left"}`}
-                                                >
-                                                    {message.timestamp}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="mt-auto">
-                            <div className="h-px w-full bg-[#D9D9D9]" />
-
-                            {selectedImage ? (
-                                <div className="mt-4 rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-3">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p className="text-sm font-medium text-black">
-                                                Image ready to send
-                                            </p>
-                                            <p className="text-xs text-[#666666]">
-                                                {selectedImage.name}
-                                            </p>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#D9D9D9] bg-white text-black"
-                                            aria-label="Remove selected image"
-                                            onClick={clearSelectedImage}
-                                            disabled={isSending}
-                                        >
-                                            <X size={16} />
-                                        </button>
+                                {!isLoadingMessages && messages.length === 0 ? (
+                                    <div className="flex h-full items-center justify-center">
+                                        <p className="text-sm text-[#999999]">
+                                            No messages yet!
+                                        </p>
                                     </div>
+                                ) : null}
 
-                                    {selectedImagePreviewUrl ? (
-                                        <img
-                                            src={selectedImagePreviewUrl}
-                                            alt="Selected attachment preview"
-                                            className="mt-3 max-h-56 rounded-xl object-cover"
-                                        />
+                                <div className="pb-6">
+                                    {isLoadingMessages ? (
+                                        <p className="text-center text-sm text-[#999999]">
+                                            Loading messages...
+                                        </p>
+                                    ) : null}
+
+                                    {messages.map((message, index) => {
+                                        const isSent =
+                                            message.direction === "sent";
+                                        const isPatient =
+                                            message.senderId === userId;
+                                        const nextMessage = messages[index + 1];
+                                        const previousMessage =
+                                            messages[index - 1];
+                                        const startsChunk =
+                                            !previousMessage ||
+                                            previousMessage.senderId !==
+                                                message.senderId;
+                                        const endsChunk =
+                                            !nextMessage ||
+                                            nextMessage.senderId !==
+                                                message.senderId;
+                                        const senderLabel = isSent
+                                            ? currentUserName || "You"
+                                            : isPatient
+                                              ? chatUserFullName
+                                              : (senderProfiles[
+                                                    message.senderId
+                                                ] ?? message.senderId);
+
+                                        return (
+                                            <div
+                                                key={message.id}
+                                                className={`flex ${isSent ? "justify-end" : "justify-start"} ${startsChunk ? "pt-4" : "pt-0.5"}`}
+                                            >
+                                                <div
+                                                    className={`max-w-[75%] ${isSent ? "items-end" : "items-start"} flex flex-col`}
+                                                >
+                                                    {startsChunk &&
+                                                    senderLabel ? (
+                                                        <span className="mb-1 text-xs font-medium text-[#666666]">
+                                                            {senderLabel}
+                                                        </span>
+                                                    ) : null}
+                                                    <div
+                                                        className={`rounded-2xl px-4 py-3 text-[16px] ${isSent ? "bg-black text-white" : "bg-[#F0F0F0] text-black"}`}
+                                                    >
+                                                        {message.messageType ===
+                                                        "image" ? (
+                                                            message.imageUrl ? (
+                                                                <img
+                                                                    src={
+                                                                        message.imageUrl
+                                                                    }
+                                                                    alt="Chat attachment"
+                                                                    className="max-h-72 rounded-xl object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span>
+                                                                    Image
+                                                                    unavailable
+                                                                </span>
+                                                            )
+                                                        ) : (
+                                                            message.text
+                                                        )}
+                                                    </div>
+                                                    {endsChunk ? (
+                                                        <span
+                                                            className={`mt-1 text-[16px] text-[#999999] ${isSent ? "text-right" : "text-left"}`}
+                                                        >
+                                                            {message.timestamp}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="mt-auto">
+                                <div className="h-px w-full bg-[#D9D9D9]" />
+
+                                {selectedImage ? (
+                                    <div className="mt-4 rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-medium text-black">
+                                                    Image ready to send
+                                                </p>
+                                                <p className="text-xs text-[#666666]">
+                                                    {selectedImage.name}
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="flex h-8 w-8 items-center justify-center rounded-md border border-[#D9D9D9] bg-white text-black"
+                                                aria-label="Remove selected image"
+                                                onClick={clearSelectedImage}
+                                                disabled={isSending}
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+
+                                        {selectedImagePreviewUrl ? (
+                                            <img
+                                                src={selectedImagePreviewUrl}
+                                                alt="Selected attachment preview"
+                                                className="mt-3 max-h-56 rounded-xl object-cover"
+                                            />
+                                        ) : null}
+                                    </div>
+                                ) : null}
+
+                                <div className="mt-4 flex items-center gap-3">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept={CHAT_ATTACHMENT_SETTINGS.acceptedMimeTypes.join(
+                                            ","
+                                        )}
+                                        className="hidden"
+                                        onChange={handleImageInputChange}
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="Type message..."
+                                        value={newMessage}
+                                        onChange={(e) =>
+                                            setNewMessage(e.target.value)
+                                        }
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                void sendMessage();
+                                            }
+                                        }}
+                                        className="h-12 flex-1 rounded-2xl border-0 bg-[#F0F0F0] px-4 text-base text-black placeholder:italic placeholder:text-[#999999] focus:outline-none"
+                                    />
+
+                                    <button
+                                        type="button"
+                                        className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
+                                        aria-label="Add photo"
+                                        onClick={handleSelectImage}
+                                        disabled={isSending}
+                                    >
+                                        <ImagePlus size={22} />
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
+                                        aria-label="Send message"
+                                        onClick={() => void sendMessage()}
+                                        disabled={
+                                            isSending ||
+                                            (!newMessage.trim() &&
+                                                !selectedImage)
+                                        }
+                                    >
+                                        <Send size={22} />
+                                    </button>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-between gap-4 text-xs text-[#666666]">
+                                    <p>
+                                        One image per message. Max{" "}
+                                        {formatMaxImageSizeLabel()}. Allowed:{" "}
+                                        {
+                                            CHAT_ATTACHMENT_SETTINGS.acceptedFileExtensionsLabel
+                                        }
+                                    </p>
+                                    {composerError ? (
+                                        <p className="text-right text-[#B42318]">
+                                            {composerError}
+                                        </p>
                                     ) : null}
                                 </div>
-                            ) : null}
-
-                            <div className="mt-4 flex items-center gap-3">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept={CHAT_ATTACHMENT_SETTINGS.acceptedMimeTypes.join(
-                                        ","
-                                    )}
-                                    className="hidden"
-                                    onChange={handleImageInputChange}
-                                />
-
-                                <input
-                                    type="text"
-                                    placeholder="Type message..."
-                                    value={newMessage}
-                                    onChange={(e) =>
-                                        setNewMessage(e.target.value)
-                                    }
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            void sendMessage();
-                                        }
-                                    }}
-                                    className="h-12 flex-1 rounded-2xl border-0 bg-[#F0F0F0] px-4 text-base text-black placeholder:italic placeholder:text-[#999999] focus:outline-none"
-                                />
-
-                                <button
-                                    type="button"
-                                    className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
-                                    aria-label="Add photo"
-                                    onClick={handleSelectImage}
-                                    disabled={isSending}
-                                >
-                                    <ImagePlus size={22} />
-                                </button>
-
-                                <button
-                                    type="button"
-                                    className="flex h-12 w-12 items-center justify-center rounded-md bg-black text-white"
-                                    aria-label="Send message"
-                                    onClick={() => void sendMessage()}
-                                    disabled={
-                                        isSending ||
-                                        (!newMessage.trim() && !selectedImage)
-                                    }
-                                >
-                                    <Send size={22} />
-                                </button>
                             </div>
-
-                            <div className="mt-3 flex items-center justify-between gap-4 text-xs text-[#666666]">
-                                <p>
-                                    One image per message. Max{" "}
-                                    {formatMaxImageSizeLabel()}. Allowed:{" "}
-                                    {
-                                        CHAT_ATTACHMENT_SETTINGS.acceptedFileExtensionsLabel
-                                    }
-                                </p>
-                                {composerError ? (
-                                    <p className="text-right text-[#B42318]">
-                                        {composerError}
-                                    </p>
-                                ) : null}
-                            </div>
-                        </div>
-                    </section>
+                        </section>
+                    </div>
                 </div>
             </div>
 

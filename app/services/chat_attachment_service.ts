@@ -103,6 +103,7 @@ export async function sendChatMessageWithOptionalImage({
             : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     const chatRef = doc(db, "chats", chatId);
+    const patientRef = doc(db, "users", chatId);
     const messagesRef = collection(db, "chats", chatId, "messages");
     const textMessageRef = hasText ? doc(messagesRef) : null;
     const imageMessageRef = hasImage ? doc(messagesRef) : null;
@@ -170,6 +171,14 @@ export async function sendChatMessageWithOptionalImage({
                 lastMessage: buildChatSummary(trimmedText, hasImage),
                 lastMessageTimestamp: serverTimestamp(),
                 lastMessageBatchId: clientBatchId,
+            },
+            { merge: true }
+        );
+
+        batch.set(
+            patientRef,
+            {
+                lastContactTimestamp: serverTimestamp(),
             },
             { merge: true }
         );

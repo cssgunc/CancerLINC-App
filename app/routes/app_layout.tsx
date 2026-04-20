@@ -1,17 +1,64 @@
 import { Search } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Outlet, useMatch, useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "~/services/firebase_provider";
+
+const SEARCH_HINTS = [
+    "Search by last name..",
+    "Search for patients..",
+    "Search for social worker..",
+];
 
 export default function AppLayout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const onMemberPage = useMatch("/member/:user");
+    const [memberSearchValue, setMemberSearchValue] = useState("");
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const [activeHintIndex, setActiveHintIndex] = useState(0);
+    const [upcomingHintIndex, setUpcomingHintIndex] = useState(1);
+    const [isHintTransitioning, setIsHintTransitioning] = useState(false);
 
     const searchValue = searchParams.get("q") ?? "";
+    const inputValue = onMemberPage ? memberSearchValue : searchValue;
+    const shouldShowHint = inputValue.length === 0 && !isSearchFocused;
+
+    useEffect(() => {
+        if (!onMemberPage) {
+            setMemberSearchValue("");
+        }
+    }, [onMemberPage]);
+
+    useEffect(() => {
+        if (!shouldShowHint) {
+            setIsHintTransitioning(false);
+            return;
+        }
+
+        const timer = window.setInterval(() => {
+            setUpcomingHintIndex((activeHintIndex + 1) % SEARCH_HINTS.length);
+            setIsHintTransitioning(true);
+        }, 2600);
+
+        return () => window.clearInterval(timer);
+    }, [activeHintIndex, shouldShowHint]);
+
+    useEffect(() => {
+        if (!isHintTransitioning) return;
+
+        const timer = window.setTimeout(() => {
+            setActiveHintIndex(upcomingHintIndex);
+            setIsHintTransitioning(false);
+        }, 420);
+
+        return () => window.clearTimeout(timer);
+    }, [isHintTransitioning, upcomingHintIndex]);
 
     function handleSearchChange(value: string) {
         if (onMemberPage) {
+            setMemberSearchValue(value);
+
             // On member page: navigate to dashboard with query pre-filled
             if (value) {
                 navigate(`/?q=${encodeURIComponent(value)}`);
@@ -55,14 +102,31 @@ export default function AppLayout() {
                     {/* Search */}
                     <div className="relative mx-4 flex-1">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                        {shouldShowHint ? (
+                            <div className="pointer-events-none absolute inset-y-0 left-10 right-4 flex items-center overflow-hidden text-sm text-gray-400">
+                                <span
+                                    className={`search-hint ${
+                                        isHintTransitioning
+                                            ? "search-hint-leave"
+                                            : "search-hint-active"
+                                    }`}
+                                >
+                                    {SEARCH_HINTS[activeHintIndex]}
+                                </span>
+                                {isHintTransitioning ? (
+                                    <span className="search-hint search-hint-enter">
+                                        {SEARCH_HINTS[upcomingHintIndex]}
+                                    </span>
+                                ) : null}
+                            </div>
+                        ) : null}
                         <input
-                            value={onMemberPage ? "" : searchValue}
+                            value={inputValue}
                             onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder={
-                                onMemberPage
-                                    ? "Search patients..."
-                                    : "Search by last name..."
-                            }
+                            onFocus={() => setIsSearchFocused(true)}
+                            onBlur={() => setIsSearchFocused(false)}
+                            placeholder=""
+                            aria-label="Search patients or assigned social workers"
                             className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                         />
                     </div>

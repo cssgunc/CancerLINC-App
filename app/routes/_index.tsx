@@ -22,21 +22,23 @@ type Patient = {
     id: string; // Firestore uid
     name: string;
     socialWorker: string;
-    lastContact: string | null; // ISO date or null if no contact yet
+    lastContact: number | null; // epoch millis or null if no contact yet
     status: Status;
 };
 
 // --- Constants ---
 const PAGE_SIZE = 50;
+const EASTERN_TIME_ZONE = "America/New_York";
 
 // --- Utilities ---
-function formatDate(iso: string | null) {
-    if (!iso) return "—";
-    const d = new Date(iso);
+function formatDate(timestampMs: number | null) {
+    if (!timestampMs) return "—";
+    const d = new Date(timestampMs);
     return d.toLocaleDateString("en-US", {
         month: "short",
         day: "2-digit",
         year: "numeric",
+        timeZone: EASTERN_TIME_ZONE,
     });
 }
 
@@ -69,6 +71,25 @@ function prefixRange(s: string): [string, string] {
         lower.slice(0, -1) +
         String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
     return [lower, upper];
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < items.length; i += size) {
+        chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+}
+
+function prefixRangeExactCase(s: string): [string, string] {
+    const upper =
+        s.slice(0, -1) + String.fromCharCode(s.charCodeAt(s.length - 1) + 1);
+    return [s, upper];
+}
+
+function firstNameQueryVariants(value: string): string[] {
+    const titleCase = value.charAt(0).toUpperCase() + value.slice(1);
+    return [...new Set([value, titleCase])].filter(Boolean);
 }
 
 // --- Component ---
@@ -146,54 +167,179 @@ export default function HomePage() {
                 ];
 
                 if (debouncedQuery.length > 0) {
-                    // Prefix search on lastName (case-insensitive via stored lowercase field)
                     const [lo, hi] = prefixRange(debouncedQuery);
-                    constraints.push(where("lastNameLower", ">=", lo));
-                    constraints.push(where("lastNameLower", "<", hi));
-                    constraints.push(orderBy("lastNameLower"));
+                    const patientQueries = [
+                        getDocs(
+                            query(
+                                usersRef,
+                                where("role", "==", "patient"),
+                                where("lastNameLower", ">=", lo),
+                                where("lastNameLower", "<", hi),
+                                orderBy("lastNameLower"),
+                                limit(PAGE_SIZE)
+                            )
+                        ),
+                    ];
+
+                    for (const variant of firstNameQueryVariants(
+                        debouncedQuery
+                    )) {
+                        const [firstLo, firstHi] =
+                            prefixRangeExactCase(variant);
+                        patientQueries.push(
+                            getDocs(
+                                query(
+                                    usersRef,
+                                    where("role", "==", "patient"),
+                                    where("firstName", ">=", firstLo),
+                                    where("firstName", "<", firstHi),
+                                    orderBy("firstName"),
+                                    limit(PAGE_SIZE)
+                                )
+                            )
+                        );
+                    }
+
+                    const socialWorkerQueries = [
+                        query(
+                            usersRef,
+                            where("role", "==", "social_worker"),
+                            where("lastNameLower", ">=", lo),
+                            where("lastNameLower", "<", hi),
+                            orderBy("lastNameLower"),
+                            limit(PAGE_SIZE)
+                        ),
+                    ];
+
+                    for (const variant of firstNameQueryVariants(
+                        debouncedQuery
+                    )) {
+                        const [firstLo, firstHi] =
+                            prefixRangeExactCase(variant);
+                        socialWorkerQueries.push(
+                            query(
+                                usersRef,
+                                where("role", "==", "social_worker"),
+                                where("firstName", ">=", firstLo),
+                                where("firstName", "<", firstHi),
+                                orderBy("firstName"),
+                                limit(PAGE_SIZE)
+                            )
+                        );
+                    }
+
+                    const [patientSnaps, socialWorkerSnaps] = await Promise.all(
+                        [
+                            Promise.all(patientQueries),
+                            Promise.all(
+                                socialWorkerQueries.map((q) => getDocs(q))
+                            ),
+                        ]
+                    );
+                    if (cancelled) return;
+
+                    const socialWorkerIds = [
+                        ...new Set(
+                            socialWorkerSnaps.flatMap((snap) =>
+                                snap.docs.map((doc) => doc.id)
+                            )
+                        ),
+                    ];
+                    const assignedPatientQueries = chunk(
+                        socialWorkerIds,
+                        10
+                    ).map((ids) =>
+                        getDocs(
+                            query(
+                                usersRef,
+                                where("role", "==", "patient"),
+                                where("assignedSocialWorkerId", "in", ids),
+                                limit(PAGE_SIZE)
+                            )
+                        )
+                    );
+                    const patientBySocialWorkerSnaps = await Promise.all(
+                        assignedPatientQueries
+                    );
+                    if (cancelled) return;
+
+                    // Merge and deduplicate
+                    const seen = new Set<string>();
+                    const merged = [
+                        ...patientSnaps.flatMap((snap) => snap.docs),
+                        ...patientBySocialWorkerSnaps.flatMap(
+                            (snap) => snap.docs
+                        ),
+                    ]
+                        .filter((d) => {
+                            if (seen.has(d.id)) return false;
+                            seen.add(d.id);
+                            return true;
+                        })
+                        .sort((a, b) => {
+                            const aLastName = String(a.data().lastName ?? "");
+                            const bLastName = String(b.data().lastName ?? "");
+                            return aLastName.localeCompare(bLastName);
+                        })
+                        .slice(0, PAGE_SIZE);
+
+                    const results: Patient[] = merged.map((d) => {
+                        const data = d.data();
+                        const ts = data.lastContactTimestamp;
+                        return {
+                            id: d.id,
+                            name:
+                                `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim() ||
+                                data.email,
+                            socialWorker: data.assignedSocialWorkerName ?? "—",
+                            lastContact: ts ? ts.toMillis() : null,
+                            status: (data.status as Status) ?? "pending",
+                        };
+                    });
+
+                    setPatients(results);
+                    setHasNextPage(false);
                 } else {
                     constraints.push(orderBy("lastName"));
+
+                    // Pagination cursor
+                    if (page > 0 && cursorStack.current[page - 1]) {
+                        constraints.push(
+                            startAfter(cursorStack.current[page - 1])
+                        );
+                    }
+
+                    constraints.push(limit(PAGE_SIZE + 1));
+
+                    const snap = await getDocs(query(usersRef, ...constraints));
+                    if (cancelled) return;
+
+                    const hasNext = snap.docs.length > PAGE_SIZE;
+                    const docs = hasNext
+                        ? snap.docs.slice(0, PAGE_SIZE)
+                        : snap.docs;
+
+                    if (docs.length > 0 && cursorStack.current.length <= page) {
+                        cursorStack.current[page] = docs[docs.length - 1];
+                    }
+
+                    const results: Patient[] = docs.map((d) => {
+                        const data = d.data();
+                        const ts = data.lastContactTimestamp;
+                        return {
+                            id: d.id,
+                            name:
+                                `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim() ||
+                                data.email,
+                            socialWorker: data.assignedSocialWorkerName ?? "—",
+                            lastContact: ts ? ts.toMillis() : null,
+                            status: (data.status as Status) ?? "pending",
+                        };
+                    });
+
+                    setPatients(results);
+                    setHasNextPage(hasNext);
                 }
-
-                // Pagination cursor
-                if (page > 0 && cursorStack.current[page - 1]) {
-                    constraints.push(startAfter(cursorStack.current[page - 1]));
-                }
-
-                constraints.push(limit(PAGE_SIZE + 1)); // fetch one extra to detect next page
-
-                const snap = await getDocs(query(usersRef, ...constraints));
-
-                if (cancelled) return;
-
-                const hasNext = snap.docs.length > PAGE_SIZE;
-                const docs = hasNext
-                    ? snap.docs.slice(0, PAGE_SIZE)
-                    : snap.docs;
-
-                // Save the last doc of this page as cursor (only once per page)
-                if (docs.length > 0 && cursorStack.current.length <= page) {
-                    cursorStack.current[page] = docs[docs.length - 1];
-                }
-
-                const results: Patient[] = docs.map((d) => {
-                    const data = d.data();
-                    const firstName = data.firstName ?? "";
-                    const lastName = data.lastName ?? "";
-                    const ts = data.lastContactTimestamp;
-                    return {
-                        id: d.id,
-                        name: `${firstName} ${lastName}`.trim() || data.email,
-                        socialWorker: data.assignedSocialWorkerName ?? "—",
-                        lastContact: ts
-                            ? ts.toDate().toISOString().split("T")[0]
-                            : null,
-                        status: (data.status as Status) ?? "pending",
-                    };
-                });
-
-                setPatients(results);
-                setHasNextPage(hasNext);
             } catch (e: unknown) {
                 if (!cancelled) {
                     setError("Failed to load patients. Please try again.");
