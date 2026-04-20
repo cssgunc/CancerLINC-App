@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cancerlinc/services/checklist_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ChecklistService _checklistService = ChecklistService();
 
   User? get currentUser => _auth.currentUser;
 
@@ -109,6 +111,9 @@ class AuthService {
         'createdAt': now,
         'lastContactTimestamp': now,
       });
+      await _checklistService.ensureDefaultChecklists(
+        userId: firebaseUser.uid,
+      );
       return;
     }
 

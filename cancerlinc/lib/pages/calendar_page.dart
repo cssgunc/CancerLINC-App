@@ -187,22 +187,52 @@ class _EventsList extends StatelessWidget {
 
   static const List<Map<String, String>> events = [
     {
-      'title': 'Team Meeting',
-      'time': '10:00 AM - 11:00 AM',
+      'title': 'Breast Cancer Awareness Walk',
+      'time': '8:00 AM - 11:00 AM',
+      'date': '26',
+      'month': 'APR',
+    },
+    {
+      'title': 'Oncology Nutrition Workshop',
+      'time': '10:00 AM - 12:00 PM',
+      'date': '30',
+      'month': 'APR',
+    },
+    {
+      'title': 'Caregiver Support Group',
+      'time': '6:00 PM - 7:30 PM',
       'date': '03',
-      'month': 'APR',
+      'month': 'MAY',
     },
     {
-      'title': 'Project Review',
+      'title': 'Cancer Survivor Yoga Session',
+      'time': '9:00 AM - 10:00 AM',
+      'date': '10',
+      'month': 'MAY',
+    },
+    {
+      'title': 'Genetic Counseling Info Session',
       'time': '1:00 PM - 2:30 PM',
-      'date': '05',
-      'month': 'APR',
+      'date': '15',
+      'month': 'MAY',
     },
     {
-      'title': 'Workout',
-      'time': '6:00 PM',
-      'date': '07',
-      'month': 'APR',
+      'title': 'CancerLINC Fundraiser Gala',
+      'time': '6:30 PM - 9:30 PM',
+      'date': '22',
+      'month': 'MAY',
+    },
+    {
+      'title': 'Mental Health & Cancer Webinar',
+      'time': '11:00 AM - 12:30 PM',
+      'date': '05',
+      'month': 'JUN',
+    },
+    {
+      'title': 'Colorectal Cancer Screening Drive',
+      'time': '8:00 AM - 2:00 PM',
+      'date': '14',
+      'month': 'JUN',
     },
   ];
 

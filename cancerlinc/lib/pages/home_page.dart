@@ -7,6 +7,10 @@ class HomePage extends StatelessWidget {
   final void Function(int) onTabChange;
   const HomePage({super.key, required this.onTabChange});
 
+  static final Uri _resourcesUrl = Uri.parse(
+    'https://cancerlinc.org/resources2025/',
+  );
+
   // Dynamic data variables
   String get userName {
     final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
@@ -21,6 +25,12 @@ class HomePage extends StatelessWidget {
   final String phoneNumber = "804-562-0371";
   final String addressLine1 = "200 South 3rd St,";
   final String addressLine2 = "Richmond, VA 23219";
+
+  Future<void> _openResources() async {
+    if (await canLaunchUrl(_resourcesUrl)) {
+      await launchUrl(_resourcesUrl, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,12 +155,30 @@ class HomePage extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 2,
               children: [
-                _buildSmallCard(text: "Employment"),
-                _buildSmallCard(text: "Insurance"),
-                _buildSmallCard(text: "Housing"),
-                _buildSmallCard(text: "Financial"),
-                _buildSmallCard(text: "Transportation"),
-                _buildSmallCard(text: "Food Access"),
+                _buildSmallCard(
+                  text: "Employment",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Insurance",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Housing",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Financial",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Transportation",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Food Access",
+                  onTap: () => _openResources(),
+                ),
               ],
             ),
             SizedBox(height: 32),

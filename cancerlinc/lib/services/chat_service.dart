@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -72,6 +74,38 @@ class ChatService {
 
     await _db.collection('chats').doc(chatId).update({
       'lastMessage': content,
+      'lastMessageTimestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Uploads [imageFile] to Firebase Storage and sends an image message.
+  Future<void> sendImageMessage(String chatId, File imageFile, String fileName) async {
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chatAttachments/$chatId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+
+    final snapshot = await storageRef.putFile(imageFile);
+    final imageUrl = await snapshot.ref.getDownloadURL();
+
+    final messagesRef = _db.collection('chats').doc(chatId).collection('messages');
+    final messageDoc = messagesRef.doc();
+
+    await messageDoc.set({
+      'messageId': messageDoc.id,
+      'content': '',
+      'messageType': 'image',
+      'imageUrl': imageUrl,
+      'imagePath': storageRef.fullPath,
+      'imageFileName': fileName,
+      'imageMimeType': 'image/jpeg',
+      'imageSizeBytes': await imageFile.length(),
+      'senderId': currentUserId,
+      'isRead': false,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await _db.collection('chats').doc(chatId).update({
+      'lastMessage': 'Sent a photo',
       'lastMessageTimestamp': FieldValue.serverTimestamp(),
     });
   }

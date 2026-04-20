@@ -6,13 +6,13 @@ const _border = Color(0xFFD9D9D9);
 const _placeholder = Color(0xFF999999);
 
 class ReferralCard extends StatelessWidget {
-  final String doctorName;
-  final String credentials;
+  final String referralName;
+  final String referralTitle;
+  final String referralType;
   final String phoneNumber;
   final String email;
-  final String hospitalName;
-  final String? clinicName;
-  final String referredBy;
+  final String status;
+  final String notes;
   final String websiteUrl;
   final VoidCallback? onWebsiteTap;
   final VoidCallback? onPhoneTap;
@@ -20,36 +20,55 @@ class ReferralCard extends StatelessWidget {
 
   const ReferralCard({
     super.key,
-    required this.doctorName,
-    required this.credentials,
+    required this.referralName,
+    required this.referralTitle,
+    required this.referralType,
     required this.phoneNumber,
     required this.email,
-    required this.hospitalName,
-    this.clinicName,
-    required this.referredBy,
+    required this.status,
+    required this.notes,
     required this.websiteUrl,
     this.onWebsiteTap,
     this.onPhoneTap,
     this.onEmailTap,
   });
 
-  String get _role {
-    final lowerName = doctorName.toLowerCase();
-    final lowerCredentials = credentials.toLowerCase();
-    if (lowerCredentials.contains('rn') ||
-        lowerCredentials.contains('nurse') ||
-        lowerName.contains('nurse')) {
-      return 'Nurse';
+  String get _statusLabel {
+    final trimmed = status.trim();
+    if (trimmed.isEmpty) return 'Pending';
+    return '${trimmed[0].toUpperCase()}${trimmed.substring(1)}';
+  }
+
+  Color get _statusBackground {
+    switch (status.trim().toLowerCase()) {
+      case 'completed':
+        return const Color(0xFFE8F5E9);
+      case 'in-progress':
+        return const Color(0xFFFFF8E1);
+      case 'pending':
+      default:
+        return const Color(0xFFF2F4F7);
     }
-    if (lowerName.contains('radiologist') ||
-        lowerCredentials.contains('radiologist')) {
-      return 'Radiologist';
+  }
+
+  Color get _statusTextColor {
+    switch (status.trim().toLowerCase()) {
+      case 'completed':
+        return const Color(0xFF2E7D32);
+      case 'in-progress':
+        return const Color(0xFF8D6E00);
+      case 'pending':
+      default:
+        return _dark;
     }
-    return 'Doctor';
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasWebsite = websiteUrl.trim().isNotEmpty;
+    final titleText = referralTitle.trim().isNotEmpty ? referralTitle : referralType;
+    final notesText = notes.trim().isNotEmpty ? notes : 'No notes provided';
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -67,7 +86,6 @@ class ReferralCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar + name row
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -90,82 +108,101 @@ class ReferralCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      doctorName,
+                      referralName,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: _dark,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      credentials,
-                      style: const TextStyle(fontSize: 14, color: _placeholder),
-                    ),
+                    if (titleText.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        titleText,
+                        style: const TextStyle(fontSize: 14, color: _placeholder),
+                      ),
+                    ],
                   ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _statusBackground,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _statusLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _statusTextColor,
+                  ),
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 12),
           const Divider(color: _border, height: 1),
           const SizedBox(height: 12),
-
-          // Hospital
+          if (referralType.trim().isNotEmpty) ...[
+            _InfoRow(
+              icon: Icons.badge_outlined,
+              iconColor: _green,
+              text: referralType,
+            ),
+            const SizedBox(height: 6),
+          ],
+          if (phoneNumber.trim().isNotEmpty) ...[
+            GestureDetector(
+              onTap: onPhoneTap,
+              child: _InfoRow(
+                icon: Icons.phone_outlined,
+                iconColor: _green,
+                text: phoneNumber,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          if (email.trim().isNotEmpty) ...[
+            GestureDetector(
+              onTap: onEmailTap,
+              child: _InfoRow(
+                icon: Icons.email_outlined,
+                iconColor: _green,
+                text: email,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
           _InfoRow(
-            icon: Icons.local_hospital_outlined,
+            icon: Icons.sticky_note_2_outlined,
             iconColor: _green,
-            text: clinicName != null && clinicName!.isNotEmpty
-                ? '$hospitalName · $clinicName'
-                : hospitalName,
-          ),
-          const SizedBox(height: 6),
-
-          // Phone
-          GestureDetector(
-            onTap: onPhoneTap,
-            child: _InfoRow(icon: Icons.phone_outlined, iconColor: _green, text: phoneNumber),
-          ),
-          const SizedBox(height: 6),
-
-          // Email
-          GestureDetector(
-            onTap: onEmailTap,
-            child: _InfoRow(icon: Icons.email_outlined, iconColor: _green, text: email),
-          ),
-          const SizedBox(height: 6),
-
-          // Referred by
-          _InfoRow(
-            icon: Icons.person_add_outlined,
-            iconColor: _green,
-            text: 'Referred by $referredBy',
+            text: notesText,
             textColor: _placeholder,
           ),
-
-          const SizedBox(height: 14),
-
-          // Website button
-          GestureDetector(
-            onTap: onWebsiteTap ?? () {},
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: _dark,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '$_role Website',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          if (hasWebsite) ...[
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: onWebsiteTap,
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _dark,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'Open Website',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -188,6 +225,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 16, color: iconColor),
         const SizedBox(width: 8),
