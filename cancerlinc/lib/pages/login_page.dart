@@ -19,6 +19,7 @@ class LoginPage extends StatefulWidget {
     final TextEditingController _emailController = TextEditingController(); //email controller
     final TextEditingController _passwordController = TextEditingController(); //password controller
     bool _rememberMe = false;
+    String? _errorMessage;
 
     @override
     void dispose() { //get rid of controllers when not needed
@@ -100,6 +101,7 @@ class LoginPage extends StatefulWidget {
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                 ),
+
                 const SizedBox(height: 8),
                 TextField(
                   controller: _passwordController,
@@ -112,7 +114,36 @@ class LoginPage extends StatefulWidget {
                     fillColor: Colors.white,
                   ),
                 ),
-
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        border: Border.all(color: Colors.red.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
 
                 // remember me and forgot password
@@ -156,16 +187,21 @@ class LoginPage extends StatefulWidget {
                           _emailController.text.trim(),
                           _passwordController.text.trim(),
                         );
+                        if (userCredential.user?.emailVerified == false) {
+                          await _authService.signOut();
+                          if (mounted) setState(() => _errorMessage = 'Please verify your email before logging in.');
+                          return;
+                        }
                         if (mounted) {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => const BottomBar()),
                           );
                         }
-                      } on FirebaseAuthException catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.message ?? 'Login failed')),
-                        );
+                      } on FirebaseAuthException {
+                        setState(() {
+                          _errorMessage = 'Incorrect Email or Password Entered';
+                        });
                       }
                     },
 

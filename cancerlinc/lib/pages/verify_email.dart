@@ -1,21 +1,41 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/pages/login_page.dart';
-import 'package:cancerlinc/pages/change_password.dart';
+import 'package:cancerlinc/services/auth.dart';
+import 'package:cancerlinc/components/bottom_bar.dart';
 
 class VerifyEmail extends StatefulWidget {
-  final String email; //hold email
-  const VerifyEmail({Key? key, required this.email}) : super(key: key);
+  final String email;
+  final bool isSignup;
+  const VerifyEmail({Key? key, required this.email, this.isSignup = false}) : super(key: key);
 
   @override
   State<VerifyEmail> createState() => _VerifyEmailState();
 }
 
 class _VerifyEmailState extends State<VerifyEmail> {
-  final TextEditingController _codeController = TextEditingController();
+  Timer? _timer;
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isSignup) {
+      _timer = Timer.periodic(const Duration(seconds: 3), (_) async {
+        await FirebaseAuth.instance.currentUser?.reload();
+        if (FirebaseAuth.instance.currentUser?.emailVerified == true) {
+          _timer?.cancel();
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomBar()));
+          }
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
-    _codeController.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -29,88 +49,76 @@ class _VerifyEmailState extends State<VerifyEmail> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              },
-              child: const Padding(
-                padding: EdgeInsets.only(top: 30.0),
-                child: Row(children: [
-                  const Padding(padding: EdgeInsets.only(left: 8.0)), 
-                  Icon(Icons.arrow_back_ios), 
-                  Text("Back to login")]),
+                onTap: () => Navigator.pop(context),
+                child: const Padding(
+                  padding: EdgeInsets.only(top: 30.0),
+                  child: Row(children: [
+                    Padding(padding: EdgeInsets.only(left: 8.0)),
+                    Icon(Icons.arrow_back_ios),
+                    Text("Back"),
+                  ]),
+                ),
               ),
-            ),
+
+              const SizedBox(height: 80),
+
               Center(
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
-                    const Text('Verify Email', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600)),
+                    Text(
+                      widget.isSignup ? 'Verify Your Email' : 'Email Sent',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 16),
                     Text(
-                      'A verification code was sent to\n${widget.email}. Please enter it below.',
+                      widget.isSignup
+                          ? 'A verification link was sent to\n${widget.email}.\nClick the link in your inbox to continue.'
+                          : 'Email sent. Please check your inbox\nto change your password.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 14, color: Colors.black54),
                     ),
-                    const SizedBox(height: 8),
-                    const Text('\nThe code will expire in 10 minutes.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.black54)),
+                    if (widget.isSignup) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Can't find it? Check your spam or junk folder.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.black38),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('Waiting for verification...', style: TextStyle(fontSize: 13, color: Colors.black38)),
+                    ],
                   ],
                 ),
               ),
 
-              const SizedBox(height: 32),
-              const Text('Enter Verification Code', style: TextStyle(fontSize: 13)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _codeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-              ),
+              const SizedBox(height: 40),
 
-              const SizedBox(height: 16),
+              if (widget.isSignup)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton(
+                      onPressed: () => _authService.sendEmailVerification(),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text('RESEND EMAIL', style: TextStyle(color: Colors.black)),
+                    ),
+                  ),
+                ),
+
               SizedBox(
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton(
-                  onPressed: () {
-                    final code = _codeController.text.trim();
-                    if (code.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter the verification code')),
-                      );
-                      return;
-                    }
-
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => ChangePasswordPage(code: code)),
-                    );
-                  },
+                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text('CONTINUE', style: TextStyle(color: Colors.white)),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 46,
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {print("Send Code Again");},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('RESEND CODE', style: TextStyle(color: Colors.white)),
+                  child: const Text('RETURN TO LOGIN', style: TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -120,4 +128,3 @@ class _VerifyEmailState extends State<VerifyEmail> {
     );
   }
 }
- 

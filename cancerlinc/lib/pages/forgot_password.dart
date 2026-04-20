@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/pages/verify_email.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../services/auth.dart';
 
 class ForgotPassword extends StatefulWidget {
   final String? email;
@@ -12,6 +15,7 @@ class ForgotPassword extends StatefulWidget {
 
 class _ForgotPasswordState extends State<ForgotPassword> {
   late TextEditingController _emailController;
+  final AuthService _authService = AuthService();
   @override
   void initState() {
     super.initState();
@@ -28,10 +32,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
             children: [
             GestureDetector(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
+                Navigator.pop(context);
               },
               child: const Padding(
                 padding: EdgeInsets.only(top: 30.0),
@@ -79,6 +80,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   height: 46,
                   child: ElevatedButton(
                     onPressed: () {
+                      _authService.resetPassword(_emailController.text);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => VerifyEmail(email: _emailController.text)),

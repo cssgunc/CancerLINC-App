@@ -218,12 +218,12 @@ class HomePage extends StatelessWidget {
                             Text(
                               "App built by",
                               style:
-                                  TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                              TextStyle(fontSize: 12, color: Color(0xFF666666)),
                             ),
                             Text(
                               "UNC CS + SG",
                               style:
-                                  TextStyle(fontSize: 16, color: Colors.black),
+                              TextStyle(fontSize: 16, color: Colors.black),
                             ),
                           ],
                         )
