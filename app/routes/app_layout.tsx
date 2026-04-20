@@ -25,8 +25,14 @@ export default function AppLayout() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
+        <div
+            className={
+                onMemberPage
+                    ? "flex h-screen flex-col overflow-hidden bg-gray-50"
+                    : "min-h-screen bg-gray-50"
+            }
+        >
+            <header className="shrink-0 border-b bg-white/95 backdrop-blur">
                 <div className="container mx-auto flex items-center gap-4 px-6 py-4">
                     {/* Back button — only on member pages */}
                     {onMemberPage ? (
@@ -75,7 +81,15 @@ export default function AppLayout() {
                 </div>
             </header>
 
-            <Outlet />
+            <div
+                className={
+                    onMemberPage
+                        ? "flex flex-1 flex-col overflow-hidden"
+                        : undefined
+                }
+            >
+                <Outlet />
+            </div>
         </div>
     );
 }

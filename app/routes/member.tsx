@@ -7,6 +7,16 @@ import React, {
 } from "react";
 import { ImagePlus, Send, X } from "lucide-react";
 import { useParams } from "react-router";
+import ReferralCard from "~/components/ReferralCard";
+import ReferralFormDialog from "~/components/ReferralFormDialog";
+import {
+    useReferrals,
+    addReferral,
+    editReferral,
+    deleteReferral,
+    type ReferralFormData,
+} from "~/hooks/useReferrals";
+import type { ReferralWithProvider } from "~/types/referral";
 import {
     collection,
     type DocumentData,
@@ -89,6 +99,12 @@ export default function MemberPage() {
     const [senderProfiles, setSenderProfiles] = useState<
         Record<string, string>
     >({});
+    const [editingReferral, setEditingReferral] =
+        useState<ReferralWithProvider | null>(null);
+    const [referralDialogMode, setReferralDialogMode] = useState<
+        "add" | "edit" | null
+    >(null);
+    const { referrals } = useReferrals(userId);
     const messageContainerRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const oldestCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(
@@ -450,28 +466,59 @@ export default function MemberPage() {
 
     return (
         <div
-            className="px-8 py-10 text-black"
+            className="flex h-full flex-col overflow-hidden px-4 pb-3 pt-5 text-black"
             style={{ fontFamily: "Inter, sans-serif" }}
         >
-            <h1 className="text-center text-[32px] font-medium leading-tight text-black">
-                {chatUserFullName}
-            </h1>
+            <div className="mx-auto flex w-full max-w-[1400px] flex-1 items-stretch justify-center gap-6 min-h-0 pb-2">
+                {/* Referrals column */}
+                <div className="flex w-[25vw] min-w-[260px] flex-col">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <h2 className="text-[24px] font-semibold leading-tight text-black">
+                            {chatUserFullName}&apos;s Referrals
+                        </h2>
+                        <button
+                            className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
+                            onClick={() => {
+                                setEditingReferral(null);
+                                setReferralDialogMode("add");
+                            }}
+                        >
+                            + Add
+                        </button>
+                    </div>
 
-            <div className="mx-auto mt-10 flex w-full max-w-[1400px] items-start justify-center gap-10">
-                <div className="w-[25vw] min-w-[280px]">
-                    <h2 className="mb-3 text-[24px] font-semibold leading-tight text-black">
-                        {chatUserFullName}&apos;s Referrals
-                    </h2>
-
-                    <section className="h-[72vh] w-full bg-white p-6 shadow-md" />
+                    <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+                        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+                            {referrals.length === 0 ? (
+                                <p className="text-sm text-gray-500">
+                                    No referrals found.
+                                </p>
+                            ) : (
+                                referrals.map((referral) => (
+                                    <ReferralCard
+                                        key={referral.id}
+                                        referral={referral}
+                                        onEdit={() => {
+                                            setEditingReferral(referral);
+                                            setReferralDialogMode("edit");
+                                        }}
+                                        onDelete={(id) =>
+                                            void deleteReferral(userId, id)
+                                        }
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </section>
                 </div>
 
-                <div className="w-[33vw] min-w-[673px]">
+                {/* Chat column */}
+                <div className="flex w-[40vw] min-w-[360px] max-w-[600px] flex-col">
                     <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
                         Chat with {chatUserFirstName}
                     </h2>
 
-                    <section className="flex h-[72vh] min-h-[400px] w-full flex-col bg-white p-6 shadow-md">
+                    <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                         <div
                             ref={messageContainerRef}
                             onScroll={handleMessagesScroll}
@@ -481,6 +528,14 @@ export default function MemberPage() {
                                 <p className="pb-3 text-center text-sm text-[#999999]">
                                     Loading older messages...
                                 </p>
+                            ) : null}
+
+                            {!isLoadingMessages && messages.length === 0 ? (
+                                <div className="flex h-full items-center justify-center">
+                                    <p className="text-sm text-[#999999]">
+                                        No messages yet!
+                                    </p>
+                                </div>
                             ) : null}
 
                             <div className="space-y-4 pb-6">
@@ -654,6 +709,33 @@ export default function MemberPage() {
                     </section>
                 </div>
             </div>
+
+            <ReferralFormDialog
+                open={referralDialogMode !== null}
+                onClose={() => {
+                    setReferralDialogMode(null);
+                    setEditingReferral(null);
+                }}
+                onSubmit={async (data: ReferralFormData) => {
+                    if (referralDialogMode === "edit" && editingReferral) {
+                        await editReferral(userId, editingReferral.id, data);
+                    } else {
+                        await addReferral(userId, data);
+                    }
+                    setReferralDialogMode(null);
+                    setEditingReferral(null);
+                }}
+                initialData={
+                    referralDialogMode === "edit" ? editingReferral : null
+                }
+                title={
+                    referralDialogMode === "edit"
+                        ? "Edit Referral"
+                        : "Add Referral"
+                }
+                patientId={userId}
+                socialWorkerId={user?.uid ?? ""}
+            />
         </div>
     );
 }
