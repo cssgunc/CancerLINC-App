@@ -34,12 +34,14 @@ class _BottomBarState extends State<BottomBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [SizedBox(width: 12), Text(_titles[_currentIndex])],
-        ),
-        centerTitle: false,
-      ),
+      appBar: _currentIndex == 1
+          ? null
+          : AppBar(
+              title: Row(
+                children: [SizedBox(width: 12), Text(_titles[_currentIndex])],
+              ),
+              centerTitle: false,
+            ),
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
