@@ -42,7 +42,7 @@ class _ChatPageState extends State<ChatPage> {
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final name = userDoc.data()?['assignedSocialWorkerName'] as String?;
-      if (name != null && name.isNotEmpty) _workerName = name;
+      if (name != null && name.isNotEmpty) _workerName = "Your contact: $name";
     }
     final doc = await _chatService.getUserChat();
     if (mounted) {
@@ -72,7 +72,6 @@ class _ChatPageState extends State<ChatPage> {
                     : _MessagesList(
                         chatId: _chatId!,
                         chatService: _chatService,
-                        workerName: _workerName,
                       ),
           ),
           if (!_loading)
@@ -151,12 +150,10 @@ class _HeaderIconButton extends StatelessWidget {
 class _MessagesList extends StatefulWidget {
   final String chatId;
   final ChatService chatService;
-  final String workerName;
 
   const _MessagesList({
     required this.chatId,
     required this.chatService,
-    required this.workerName,
   });
 
   @override
@@ -237,7 +234,7 @@ class _MessagesListState extends State<_MessagesList> {
             final time =
                 timestamp != null ? _formatTime(timestamp.toDate()) : '';
             final senderName =
-                group.isUser ? 'You' : widget.workerName;
+                group.messages.first['senderName'] as String? ?? '';
 
             return _MessageGroupWidget(
               group: group,
