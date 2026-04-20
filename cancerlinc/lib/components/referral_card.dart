@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+const _dark = Color(0xFF3F454F);
+const _green = Color(0xFFA0CC39);
+const _border = Color(0xFFD9D9D9);
+const _placeholder = Color(0xFF999999);
+
 class ReferralCard extends StatelessWidget {
   final String doctorName;
   final String credentials;
@@ -31,7 +36,6 @@ class ReferralCard extends StatelessWidget {
   String get _role {
     final lowerName = doctorName.toLowerCase();
     final lowerCredentials = credentials.toLowerCase();
-
     if (lowerCredentials.contains('rn') ||
         lowerCredentials.contains('nurse') ||
         lowerName.contains('nurse')) {
@@ -44,146 +48,156 @@ class ReferralCard extends StatelessWidget {
     return 'Doctor';
   }
 
-  String get _websiteButtonText {
-    return '$_role Website';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFE0E0E0), width: 1)),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: _border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromRGBO(0, 0, 0, 0.07),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: 90,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD9D9D9),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        doctorName,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF000000),
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        credentials,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF000000),
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: onPhoneTap,
-                        child: Text(
-                          phoneNumber,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF000000),
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      GestureDetector(
-                        onTap: onEmailTap,
-                        child: Text(
-                          email,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF000000),
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        hospitalName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF000000),
-                          height: 1.2,
-                        ),
-                      ),
-                      if (clinicName != null && clinicName!.isNotEmpty) ...[
-                        Text(
-                          clinicName!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF000000),
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 4),
-                      Text(
-                        'Referred By: $referredBy',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF000000),
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 160,
-            height: 36,
-            child: ElevatedButton(
-              onPressed: onWebsiteTap ?? () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF000000),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
+          // Avatar + name row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _dark,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                elevation: 0,
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      doctorName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _dark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      credentials,
+                      style: const TextStyle(fontSize: 14, color: _placeholder),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(color: _border, height: 1),
+          const SizedBox(height: 12),
+
+          // Hospital
+          _InfoRow(
+            icon: Icons.local_hospital_outlined,
+            iconColor: _green,
+            text: clinicName != null && clinicName!.isNotEmpty
+                ? '$hospitalName · $clinicName'
+                : hospitalName,
+          ),
+          const SizedBox(height: 6),
+
+          // Phone
+          GestureDetector(
+            onTap: onPhoneTap,
+            child: _InfoRow(icon: Icons.phone_outlined, iconColor: _green, text: phoneNumber),
+          ),
+          const SizedBox(height: 6),
+
+          // Email
+          GestureDetector(
+            onTap: onEmailTap,
+            child: _InfoRow(icon: Icons.email_outlined, iconColor: _green, text: email),
+          ),
+          const SizedBox(height: 6),
+
+          // Referred by
+          _InfoRow(
+            icon: Icons.person_add_outlined,
+            iconColor: _green,
+            text: 'Referred by $referredBy',
+            textColor: _placeholder,
+          ),
+
+          const SizedBox(height: 14),
+
+          // Website button
+          GestureDetector(
+            onTap: onWebsiteTap ?? () {},
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: _dark,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
               child: Text(
-                _websiteButtonText,
+                '$_role Website',
                 style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color textColor;
+  final Color iconColor;
+
+  const _InfoRow({
+    required this.icon,
+    required this.text,
+    this.textColor = _dark,
+    this.iconColor = _placeholder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: iconColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ),
+      ],
     );
   }
 }

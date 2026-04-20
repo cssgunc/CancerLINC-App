@@ -72,33 +72,42 @@ class ReferralsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: _mockReferrals.length,
-        itemBuilder: (context, index) {
-          final referral = _mockReferrals[index];
-          return ReferralCard(
-            doctorName: referral.doctorName,
-            credentials: referral.credentials,
-            phoneNumber: referral.phoneNumber,
-            email: referral.email,
-            hospitalName: referral.hospitalName,
-            clinicName: referral.clinicName,
-            referredBy: referral.referredBy,
-            websiteUrl: referral.websiteUrl,
-            onWebsiteTap: () {
-              // TODO: Implement website navigation
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              itemCount: _mockReferrals.length,
+              itemBuilder: (context, index) {
+                final referral = _mockReferrals[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: ReferralCard(
+                    doctorName: referral.doctorName,
+                    credentials: referral.credentials,
+                    phoneNumber: referral.phoneNumber,
+                    email: referral.email,
+                    hospitalName: referral.hospitalName,
+                    clinicName: referral.clinicName,
+                    referredBy: referral.referredBy,
+                    websiteUrl: referral.websiteUrl,
+                    onWebsiteTap: () {
+                      // TODO: Implement website navigation
+                    },
+                    onPhoneTap: () {
+                      // TODO: Implement phone call functionality
+                    },
+                    onEmailTap: () {
+                      // TODO: Implement email functionality
+                    },
+                  ),
+                );
               },
-            onPhoneTap: () {
-              // TODO: Implement phone call functionality
-            },
-            onEmailTap: () {
-              // TODO: Implement email functionality
-            },
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }

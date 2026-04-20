@@ -22,7 +22,8 @@ class CreateAccountPage extends StatefulWidget {
 class _CreateAccountPageState extends State<CreateAccountPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
   final AuthService _authService = AuthService();
@@ -34,7 +35,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   @override
   void dispose() {
     _emailController.dispose();
-    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -45,13 +47,19 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     final s = v ?? '';
     if (s.isEmpty) return 'Enter your email';
     if (!RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").hasMatch(s)) {
-      return 'Enter a valid email';};
+      return 'Enter a valid email';
+    }
     return null;
   }
 
 
-  String? _validateUsername(String? v) {
-    if ((v ?? '').isEmpty) return 'Enter a username';
+  String? _validateFirstName(String? v) {
+    if ((v ?? '').trim().isEmpty) return 'Enter your first name';
+    return null;
+  }
+
+  String? _validateLastName(String? v) {
+    if ((v ?? '').trim().isEmpty) return 'Enter your last name';
     return null;
   }
 
@@ -88,6 +96,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       await _authService.register(
         _emailController.text.trim(),
         _passwordController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
       );
       await _authService.sendEmailVerification();
 
@@ -168,20 +178,68 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       keyboardType: TextInputType.emailAddress,
                       validator: _validateEmail,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
                     ),
 
 
                     const SizedBox(height: 16),
-                    const Text('Username', style: TextStyle(fontSize: 14)),
+                    const Text('First Name', style: TextStyle(fontSize: 14)),
                     const SizedBox(height: 8),
                     TextFormField(
-                      controller: _usernameController,
-                      validator: _validateUsername,
+                      controller: _firstNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: _validateFirstName,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      ),
+                    ),
+
+
+                    const SizedBox(height: 16),
+                    const Text('Last Name', style: TextStyle(fontSize: 14)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _lastNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: _validateLastName,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
                     ),
@@ -195,7 +253,18 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       obscureText: _obscure1,
                       validator: _validatePassword,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         suffixIcon: IconButton(
                           icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
@@ -213,7 +282,18 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       obscureText: _obscure2,
                       validator: _validateConfirm,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                        ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         suffixIcon: IconButton(
                           icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
