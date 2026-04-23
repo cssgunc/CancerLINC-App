@@ -30,6 +30,7 @@ import {
     getDoc,
     getDocs,
     limit,
+    onSnapshot,
     orderBy,
     type QueryDocumentSnapshot,
     query,
@@ -37,6 +38,7 @@ import {
     Timestamp,
     updateDoc,
     where,
+    writeBatch,
 } from "firebase/firestore";
 import { db } from "~/services/firebase_app";
 import {
@@ -62,6 +64,7 @@ type ChatMessage = {
     clientOrder: number;
     sortTimestamp: number;
     timestamp: string;
+    isRead: boolean;
 };
 
 type UserProfile = {
@@ -158,6 +161,7 @@ export default function MemberPage() {
     const oldestCursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(
         null
     );
+    const fetchedSenderIdsRef = useRef<Set<string>>(new Set());
 
     const chatId = useMemo(() => {
         return userId ?? "";
@@ -276,6 +280,7 @@ export default function MemberPage() {
                 clientBatchId?: string;
                 clientOrder?: number;
                 timestamp?: Timestamp;
+                isRead?: boolean;
             };
 
             return {
@@ -290,6 +295,7 @@ export default function MemberPage() {
                 clientOrder: data.clientOrder ?? 0,
                 sortTimestamp: data.timestamp?.toMillis() ?? 0,
                 timestamp: formatMessageDateTime(data.timestamp),
+                isRead: data.isRead ?? false,
             };
         },
         [user?.uid]
@@ -306,11 +312,13 @@ export default function MemberPage() {
                                 id &&
                                 id !== user?.uid &&
                                 id !== userId &&
-                                !(id in senderProfiles)
+                                !fetchedSenderIdsRef.current.has(id)
                         )
                 ),
             ];
             if (!unknownIds.length) return;
+
+            unknownIds.forEach((id) => fetchedSenderIdsRef.current.add(id));
 
             const fetched: Record<string, string> = {};
             await Promise.all(
@@ -335,7 +343,7 @@ export default function MemberPage() {
             );
             setSenderProfiles((prev) => ({ ...prev, ...fetched }));
         },
-        [user?.uid, userId, senderProfiles]
+        [user?.uid, userId]
     );
 
     const sortMessagesAscending = useCallback((items: ChatMessage[]) => {
@@ -362,43 +370,20 @@ export default function MemberPage() {
         });
     }, []);
 
-    const loadInitialMessages = useCallback(async () => {
-        if (!chatId) {
-            setMessages([]);
-            setHasMoreMessages(false);
-            oldestCursorRef.current = null;
-            return;
-        }
-
-        setIsLoadingMessages(true);
-
-        try {
-            const messagesRef = collection(db, "chats", chatId, "messages");
-            const initialQuery = query(
-                messagesRef,
-                orderBy("timestamp", "desc"),
-                limit(PAGE_SIZE)
-            );
-            const snapshot = await getDocs(initialQuery);
-
-            const mapped = sortMessagesAscending(
-                snapshot.docs.map(mapMessageDoc)
-            );
-            oldestCursorRef.current = snapshot.docs.at(-1) ?? null;
-            setHasMoreMessages(snapshot.docs.length === PAGE_SIZE);
-            setMessages(mapped);
-            scrollToBottom();
-            void loadSenderProfiles(mapped);
-        } finally {
-            setIsLoadingMessages(false);
-        }
-    }, [
-        chatId,
-        loadSenderProfiles,
-        mapMessageDoc,
-        scrollToBottom,
-        sortMessagesAscending,
-    ]);
+    const markReceivedMessagesRead = useCallback(
+        (docs: QueryDocumentSnapshot<DocumentData>[]) => {
+            if (!user?.uid) return;
+            const unread = docs.filter((d) => {
+                const data = d.data();
+                return data.isRead === false && data.senderId !== user.uid;
+            });
+            if (!unread.length) return;
+            const batch = writeBatch(db);
+            unread.forEach((d) => batch.update(d.ref, { isRead: true }));
+            void batch.commit();
+        },
+        [user?.uid]
+    );
 
     const loadOlderMessages = useCallback(async () => {
         if (
@@ -438,6 +423,7 @@ export default function MemberPage() {
                 snapshot.docs.map(mapMessageDoc)
             );
             void loadSenderProfiles(olderMessages);
+            markReceivedMessagesRead(snapshot.docs);
             setMessages((current) =>
                 sortMessagesAscending([...olderMessages, ...current])
             );
@@ -459,12 +445,50 @@ export default function MemberPage() {
         isLoadingOlder,
         loadSenderProfiles,
         mapMessageDoc,
+        markReceivedMessagesRead,
         sortMessagesAscending,
     ]);
 
     useEffect(() => {
-        void loadInitialMessages();
-    }, [loadInitialMessages]);
+        if (!chatId) {
+            setMessages([]);
+            setHasMoreMessages(false);
+            oldestCursorRef.current = null;
+            return;
+        }
+
+        setIsLoadingMessages(true);
+        fetchedSenderIdsRef.current = new Set();
+
+        const messagesRef = collection(db, "chats", chatId, "messages");
+        const liveQuery = query(
+            messagesRef,
+            orderBy("timestamp", "desc"),
+            limit(PAGE_SIZE)
+        );
+
+        const unsubscribe = onSnapshot(liveQuery, (snapshot) => {
+            const mapped = sortMessagesAscending(
+                snapshot.docs.map(mapMessageDoc)
+            );
+            oldestCursorRef.current = snapshot.docs.at(-1) ?? null;
+            setHasMoreMessages(snapshot.docs.length === PAGE_SIZE);
+            setMessages(mapped);
+            setIsLoadingMessages(false);
+            scrollToBottom();
+            void loadSenderProfiles(mapped);
+            markReceivedMessagesRead(snapshot.docs);
+        });
+
+        return unsubscribe;
+    }, [
+        chatId,
+        loadSenderProfiles,
+        mapMessageDoc,
+        markReceivedMessagesRead,
+        scrollToBottom,
+        sortMessagesAscending,
+    ]);
 
     const chatUserFullName = useMemo(() => {
         if (!chatUserProfile) return "Unknown User";
@@ -518,7 +542,6 @@ export default function MemberPage() {
             });
             setNewMessage("");
             clearSelectedImage();
-            await loadInitialMessages();
         } catch (error) {
             if (error instanceof ChatAttachmentValidationError) {
                 setComposerError(error.message);
@@ -918,6 +941,13 @@ export default function MemberPage() {
                                                             className={`mt-1 text-[16px] text-[#999999] ${isSent ? "text-right" : "text-left"}`}
                                                         >
                                                             {message.timestamp}
+                                                        </span>
+                                                    ) : null}
+                                                    {endsChunk &&
+                                                    isSent &&
+                                                    message.isRead ? (
+                                                        <span className="mt-0.5 text-xs text-[#999999] self-end">
+                                                            Read
                                                         </span>
                                                     ) : null}
                                                 </div>

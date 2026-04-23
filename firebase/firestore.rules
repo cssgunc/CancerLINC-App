@@ -76,7 +76,13 @@ service cloud.firestore {
           )
         );
 
-      allow update, delete: if false;
+      allow update: if isChatParticipant(chatId)
+        && request.auth.uid != resource.data.senderId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+        && resource.data.isRead == false
+        && request.resource.data.isRead == true;
+
+      allow delete: if false;
     }
 
     match /{document=**} {
