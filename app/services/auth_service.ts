@@ -8,8 +8,9 @@ import {
     type UserCredential,
     signInWithEmailAndPassword,
 } from "firebase/auth";
+import { doc, setDoc, Timestamp } from "firebase/firestore";
 
-import { auth } from "./firebase_app";
+import { auth, db } from "./firebase_app";
 
 export type SignUpInput = {
     email: string;
@@ -43,6 +44,20 @@ export async function signUpWithEmail(
     if (input.displayName) {
         await updateProfile(cred.user, { displayName: input.displayName });
     }
+
+    await setDoc(doc(db, "users", cred.user.uid), {
+        uid: cred.user.uid,
+        email: cred.user.email ?? input.email,
+        username: input.displayName ?? "",
+        firstName: "",
+        lastName: "",
+        role: "social_worker",
+        isVerified: cred.user.emailVerified,
+        phoneNumber: "",
+        hospital: "",
+        profilePhotoUrl: cred.user.photoURL ?? "",
+        createdAt: Timestamp.now(),
+    });
 
     // verify email
     await sendEmailVerification(cred.user);
