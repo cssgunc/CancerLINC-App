@@ -4,12 +4,17 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  final void Function(int) onTabChange;
+  const HomePage({super.key, required this.onTabChange});
+
+  static final Uri _resourcesUrl = Uri.parse(
+    'https://cancerlinc.org/resources2025/',
+  );
 
   // Dynamic data variables
   String get userName {
-    final email = FirebaseAuth.instance.currentUser?.email ?? "User";
-    return email.split("@").first;
+    final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
+    return name;
   }
   final int newMessageCount = 12;
   final String nextEventDate = "Nov 12";
@@ -21,6 +26,12 @@ class HomePage extends StatelessWidget {
   final String addressLine1 = "200 South 3rd St,";
   final String addressLine2 = "Richmond, VA 23219";
 
+  Future<void> _openResources() async {
+    if (await canLaunchUrl(_resourcesUrl)) {
+      await launchUrl(_resourcesUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -28,6 +39,7 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 22),
         child: Column(
           children: [
+            SizedBox(height: 33),
             Center(
               child: Image.asset(
                 'assets/images/cancerlinc-logo.png',
@@ -64,21 +76,25 @@ class HomePage extends StatelessWidget {
                   label: "Chat",
                   icon: Icons.chat_bubble_outline,
                   info: "$newMessageCount new messages",
+                  onTap: () => onTabChange(1),
                 ),
                 _buildCard(
                   label: "Calendar",
                   icon: Icons.calendar_today_outlined,
                   info: "Next: $nextEventDate",
+                  onTap: () => onTabChange(4),
                 ),
                 _buildCard(
                   label: "Checklists",
                   icon: Icons.check_box_outlined,
                   info: "$completedChecklists of $totalChecklists complete",
+                  onTap: () => onTabChange(2),
                 ),
                 _buildCard(
                   label: "Referrals",
                   icon: Icons.assignment_ind_outlined,
                   info: "$activeReferrals active",
+                  onTap: () => onTabChange(3),
                 ),
               ],
             ),
@@ -139,12 +155,30 @@ class HomePage extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 2,
               children: [
-                _buildSmallCard(text: "Employment"),
-                _buildSmallCard(text: "Insurance"),
-                _buildSmallCard(text: "Housing"),
-                _buildSmallCard(text: "Financial"),
-                _buildSmallCard(text: "Transportation"),
-                _buildSmallCard(text: "Food Access"),
+                _buildSmallCard(
+                  text: "Employment",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Insurance",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Housing",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Financial",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Transportation",
+                  onTap: () => _openResources(),
+                ),
+                _buildSmallCard(
+                  text: "Food Access",
+                  onTap: () => _openResources(),
+                ),
               ],
             ),
             SizedBox(height: 32),
@@ -273,9 +307,7 @@ class HomePage extends StatelessWidget {
         side: BorderSide(color: Colors.grey, width: 1),
       ),
       child: InkWell(
-        onTap: onTap ?? () {
-          print('$text resource tapped');
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -300,9 +332,7 @@ class HomePage extends StatelessWidget {
       color: Color(0xFFD9D9D9),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: onTap ?? () {
-          print('$label card tapped');
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(14),

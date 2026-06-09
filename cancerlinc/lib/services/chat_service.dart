@@ -1,11 +1,25 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String get currentUserId => _auth.currentUser!.uid;
+
+  String? _cachedUserName;
+
+  Future<String> _getSenderName() async {
+    if (_cachedUserName != null) return _cachedUserName!;
+    final doc = await _db.collection('users').doc(currentUserId).get();
+    final data = doc.data();
+    final first = data?['firstName'] as String? ?? '';
+    final last = data?['lastName'] as String? ?? '';
+    _cachedUserName = '$first $last'.trim();
+    return _cachedUserName!;
+  }
 
   /// Returns the chat document for the current user (doc ID = currentUserId),
   /// or null if it doesn't exist yet.
@@ -57,6 +71,7 @@ class ChatService {
 
   /// Adds a message to [chatId] and updates the chat's lastMessage fields.
   Future<void> sendMessage(String chatId, String content) async {
+    final senderName = await _getSenderName();
     final messagesRef =
         _db.collection('chats').doc(chatId).collection('messages');
 
@@ -65,6 +80,7 @@ class ChatService {
     await messageDoc.set({
       'messageId': messageDoc.id,
       'content': content,
+      'senderName': senderName,
       'senderId': currentUserId,
       'isRead': false,
       'timestamp': FieldValue.serverTimestamp(),
@@ -72,6 +88,40 @@ class ChatService {
 
     await _db.collection('chats').doc(chatId).update({
       'lastMessage': content,
+      'lastMessageTimestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Uploads [imageFile] to Firebase Storage and sends an image message.
+  Future<void> sendImageMessage(String chatId, File imageFile, String fileName) async {
+    final senderName = await _getSenderName();
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chatAttachments/$chatId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+
+    final snapshot = await storageRef.putFile(imageFile);
+    final imageUrl = await snapshot.ref.getDownloadURL();
+
+    final messagesRef = _db.collection('chats').doc(chatId).collection('messages');
+    final messageDoc = messagesRef.doc();
+
+    await messageDoc.set({
+      'messageId': messageDoc.id,
+      'content': '',
+      'messageType': 'image',
+      'senderName': senderName,
+      'imageUrl': imageUrl,
+      'imagePath': storageRef.fullPath,
+      'imageFileName': fileName,
+      'imageMimeType': 'image/jpeg',
+      'imageSizeBytes': await imageFile.length(),
+      'senderId': currentUserId,
+      'isRead': false,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await _db.collection('chats').doc(chatId).update({
+      'lastMessage': 'Sent a photo',
       'lastMessageTimestamp': FieldValue.serverTimestamp(),
     });
   }

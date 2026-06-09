@@ -26,7 +26,10 @@ class _VerifyEmailState extends State<VerifyEmail> {
         if (FirebaseAuth.instance.currentUser?.emailVerified == true) {
           _timer?.cancel();
           if (mounted) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const BottomBar()));
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const BottomBar()),
+              (route) => false,
+            );
           }
         }
       });
