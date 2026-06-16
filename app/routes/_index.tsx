@@ -1,6 +1,7 @@
 //This is the home page
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Link } from "react-router";
+import { ChevronDown, ChevronUp, Search, CalendarDays } from "lucide-react";
 import { useAuth } from "~/services/firebase_provider";
 
 // --- Temporary JSON data ---
@@ -185,9 +186,16 @@ export default function HomePage() {
                         />
                     </div>
 
-                    {/* Welcome / Logout */}
+                    {/* Welcome / Nav / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex">
-                        <span>Welcome, {user?.displayName}</span>{" "}
+                        <span>Welcome, {user?.displayName}</span>
+                        <Link
+                            to="/calendar"
+                            className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            <CalendarDays className="h-4 w-4" />
+                            Calendar
+                        </Link>
                         <button
                             type="button"
                             onClick={logout}
