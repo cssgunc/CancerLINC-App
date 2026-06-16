@@ -78,27 +78,6 @@ class ChecklistService {
         });
   }
 
-  Future<void> createChecklist({
-    required String title,
-    required String subtitle,
-  }) async {
-    final trimmedTitle = title.trim();
-    final trimmedSubtitle = subtitle.trim();
-    if (trimmedTitle.isEmpty) return;
-
-    final now = FieldValue.serverTimestamp();
-
-    await _currentUserChecklistsRef.add({
-      'userId': currentUserId,
-      'title': trimmedTitle,
-      'subtitle': trimmedSubtitle,
-      'items': const <Map<String, dynamic>>[],
-      'archived': false,
-      'createdAt': now,
-      'updatedAt': now,
-    });
-  }
-
   Future<void> ensureDefaultChecklists({
     String? userId,
   }) async {
@@ -131,12 +110,6 @@ class ChecklistService {
     await batch.commit();
   }
 
-  Future<void> archiveChecklist(String checklistId) async {
-    await _currentUserChecklistsRef.doc(checklistId).update({
-      'archived': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
 
   Future<void> duplicateChecklist(Checklist checklist) async {
     final now = FieldValue.serverTimestamp();
@@ -152,59 +125,41 @@ class ChecklistService {
     });
   }
 
-  Future<void> addItem({
-    required String checklistId,
-    required String text,
-  }) async {
-    final trimmedText = text.trim();
-    if (trimmedText.isEmpty) return;
 
-    final checklist = await _getChecklist(checklistId);
-    final updatedItems = [
-      ...checklist.items,
-      ChecklistItem(text: trimmedText, checked: false),
-    ];
-
-    await _updateItems(checklistId, updatedItems);
-  }
-
-  Future<void> deleteItem({
-    required String checklistId,
-    required int index,
-  }) async {
-    final checklist = await _getChecklist(checklistId);
-    if (index < 0 || index >= checklist.items.length) return;
-
-    final updatedItems = [...checklist.items]..removeAt(index);
-    await _updateItems(checklistId, updatedItems);
-  }
-
-  Future<void> toggleItem({
-    required String checklistId,
-    required int index,
-  }) async {
-    final checklist = await _getChecklist(checklistId);
-    if (index < 0 || index >= checklist.items.length) return;
-
-    final updatedItems = [...checklist.items];
-    final item = updatedItems[index];
-    updatedItems[index] = item.copyWith(checked: !item.checked);
-
-    await _updateItems(checklistId, updatedItems);
-  }
-
-  Future<Checklist> _getChecklist(String checklistId) async {
-    final doc = await _currentUserChecklistsRef.doc(checklistId).get();
-    return Checklist.fromFirestore(doc);
-  }
-
-  Future<void> _updateItems(
-    String checklistId,
-    List<ChecklistItem> items,
+  Future<List<Map<String, dynamic>>> saveChecklists(
+    CollectionReference checklistsRef,
+    List<Map<String, dynamic>> localChecklists,
   ) async {
-    await _currentUserChecklistsRef.doc(checklistId).update({
-      'items': items.map((item) => item.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    final batch = FirebaseFirestore.instance.batch();
+    final List<Map<String, dynamic>> updatedChecklists = [];
+
+    for (final checklist in localChecklists) {
+      final docId = checklist['docId'] as String;
+      final isNew = docId.startsWith('local_');
+      final DocumentReference ref =
+          isNew ? checklistsRef.doc() : checklistsRef.doc(docId);
+
+      final data = {
+        'title': checklist['title'],
+        'subtitle': checklist['subtitle'],
+        'items': checklist['items'],
+        'archived': checklist['archived'],
+      };
+
+      if (isNew) {
+        batch.set(ref, data);
+      } else {
+        batch.update(ref, data);
+      }
+
+      updatedChecklists.add({
+        ...checklist,
+        'docId': ref.id,
+      });
+    }
+
+    await batch.commit();
+    return updatedChecklists;
   }
+
 }

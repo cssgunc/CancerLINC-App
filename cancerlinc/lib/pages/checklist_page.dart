@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/models/checklist.dart';
 import 'package:cancerlinc/services/checklist_service.dart';
@@ -30,15 +31,110 @@ TextStyle _regular(double size, {Color color = _dark}) =>
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 class ChecklistPage extends StatefulWidget {
-  const ChecklistPage({super.key});
+  final ValueChanged<bool>? onUnsavedChanges;
+  const ChecklistPage({super.key, this.onUnsavedChanges});
 
   @override
-  State<ChecklistPage> createState() => _ChecklistPageState();
+  State<ChecklistPage> createState() => ChecklistPageState();
 }
 
-class _ChecklistPageState extends State<ChecklistPage> {
+class ChecklistPageState extends State<ChecklistPage> {
+  
   final ChecklistService _checklistService = ChecklistService();
   bool showDeleteIcons = false;
+  late CollectionReference _checklistsRef;
+  List<Map<String, dynamic>> _localChecklists = [];
+  List<Map<String, dynamic>> _savedChecklists = [];
+  bool _isLoading = true;
+
+  // when local is diff from saved, show "Save" button in app bar
+  bool get _hasUnsavedChanges {
+    if (_localChecklists.length != _savedChecklists.length) return true;
+    for (int i = 0; i < _localChecklists.length; i++) {
+      final local = _localChecklists[i];
+      final saved = _savedChecklists[i];
+      if (local['docId'] != saved['docId']) return true;
+      if (local['title'] != saved['title']) return true;
+      if (local['subtitle'] != saved['subtitle']) return true;
+      if (local['archived'] != saved['archived']) return true;
+
+      final localItems = local['items'] as List;
+      final savedItems = saved['items'] as List;
+      if (localItems.length != savedItems.length) return true;
+      for (int j = 0; j < localItems.length; j++) {
+        if (localItems[j]['text'] != savedItems[j]['text']) return true;
+        if (localItems[j]['checked'] != savedItems[j]['checked']) return true;
+      }
+    }
+    return false;
+  }
+
+  // called after every mutation so BottomBar always knows current unsaved state
+  void _notifyUnsavedChanges() {
+    widget.onUnsavedChanges?.call(_hasUnsavedChanges);
+  }
+
+  // ================= DEEPCOPY METHOD HELPER =================
+  List<Map<String, dynamic>> _deepCopy(List<Map<String, dynamic>> source) {
+    return source.map((c) {
+      return {
+        ...c,
+        'items': List<Map<String, dynamic>>.from(
+          (c['items'] as List).map((item) => Map<String, dynamic>.from(item)),
+        ),
+      };
+    }).toList();
+  }
+
+  int _localIndexByDocId(String docId) =>
+      _localChecklists.indexWhere((c) => c['docId'] == docId);
+
+  @override
+  void initState() {
+    super.initState();
+    final userId = _checklistService.currentUserId ?? '';
+    _checklistsRef = FirebaseFirestore.instance
+        .collection('checklists')
+        .doc(userId)
+        .collection('user_checklists');
+    _loadChecklists();
+  }
+
+  // ================= LOAD CHECKLISTS ================= (load in one shot instead of stream)
+  Future<void> _loadChecklists() async {
+    final snapshot =
+        await _checklistsRef.where('archived', isEqualTo: false).get();
+
+    final loaded = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return {
+        'docId': doc.id,
+        'title': data['title'],
+        'subtitle': data['subtitle'],
+        'items': List<Map<String, dynamic>>.from(data['items']),
+        'archived': data['archived'],
+      };
+    }).toList();
+
+    setState(() {
+      // deepcopy so _savedChecklists and _localChecklists don't share references
+      _savedChecklists = _deepCopy(loaded);
+      _localChecklists = _deepCopy(loaded);
+      _isLoading = false;
+    });
+    _notifyUnsavedChanges();
+  }
+
+// ================= SAVE CHECKLISTS ================= (call new batch service)
+  Future<void> save() async {
+    final updatedChecklists = await _checklistService.saveChecklists(_checklistsRef, _localChecklists);
+    setState(() {
+      // make deep copy to avoid reference issues where changing one changes the other
+      _localChecklists = _deepCopy(updatedChecklists);
+      _savedChecklists = _deepCopy(updatedChecklists);
+    });
+    _notifyUnsavedChanges();
+  }
 
   // ================= ADD CHECKLIST =================
   void _showAddChecklistDialog() {
@@ -72,10 +168,17 @@ class _ChecklistPageState extends State<ChecklistPage> {
           _DarkButton(
             label: 'Add',
             onPressed: () {
-              _checklistService.createChecklist(
-                title: titleController.text,
-                subtitle: subtitleController.text,
-              );
+              final tempId = 'local_${DateTime.now().millisecondsSinceEpoch}';
+              setState(() {
+                _localChecklists.add({
+                  'docId': tempId,
+                  'title': titleController.text,
+                  'subtitle': subtitleController.text,
+                  'items': <Map<String, dynamic>>[],
+                  'archived': false,
+                });
+              });
+              _notifyUnsavedChanges();
               Navigator.pop(context);
             },
           ),
@@ -102,11 +205,14 @@ class _ChecklistPageState extends State<ChecklistPage> {
           ),
           _DarkButton(
             label: 'Delete',
-            onPressed: () async {
-              final nav = Navigator.of(context);
-              await _checklistService.archiveChecklist(docId);
+            onPressed: () {
+              final i = _localIndexByDocId(docId);
+              if (i != -1) {
+                setState(() => _localChecklists[i]['archived'] = true);
+              }
               setState(() => showDeleteIcons = false);
-              nav.pop();
+              _notifyUnsavedChanges();
+              Navigator.pop(context);
             },
           ),
         ],
@@ -131,13 +237,16 @@ class _ChecklistPageState extends State<ChecklistPage> {
           ),
           _DarkButton(
             label: 'Add',
-            onPressed: () async {
-              final nav = Navigator.of(context);
-              await _checklistService.addItem(
-                checklistId: docId,
-                text: controller.text,
-              );
-              nav.pop();
+            onPressed: () {
+              final i = _localIndexByDocId(docId);
+              if (i != -1) {
+                setState(() {
+                  (_localChecklists[i]['items'] as List<Map<String, dynamic>>)
+                      .add({'text': controller.text, 'checked': false});
+                });
+              }
+              _notifyUnsavedChanges();
+              Navigator.pop(context);
             },
           ),
         ],
@@ -145,74 +254,80 @@ class _ChecklistPageState extends State<ChecklistPage> {
     );
   }
 
-  void _deleteItem(String docId, int index) async {
-    await _checklistService.deleteItem(
-      checklistId: docId,
-      index: index,
-    );
+  void _deleteItem(String docId, int index) {
+    final i = _localIndexByDocId(docId);
+    if (i != -1) {
+      setState(() {
+        (_localChecklists[i]['items'] as List).removeAt(index);
+      });
+      _notifyUnsavedChanges();
+    }
   }
 
-  void _toggleItem(String docId, int index) async {
-    await _checklistService.toggleItem(
-      checklistId: docId,
-      index: index,
-    );
+  void _toggleItem(String docId, int index) {
+    final i = _localIndexByDocId(docId);
+    if (i != -1) {
+      setState(() {
+        final items = _localChecklists[i]['items'] as List<Map<String, dynamic>>;
+        items[index]['checked'] = !(items[index]['checked'] as bool);
+      });
+      _notifyUnsavedChanges();
+    }
   }
 
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SafeArea(child: Center(child: CircularProgressIndicator()));
+    }
+
+    final visible = _localChecklists.where((c) => c['archived'] == false).toList();
+
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildPageHeader(context),
           Expanded(
-            child: StreamBuilder<List<Checklist>>(
-              stream: _checklistService.streamCurrentUserChecklists(
-                archived: false,
-              ),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final checklists = snapshot.data!;
-
-                if (checklists.isEmpty) {
-                  return Center(
+            child: visible.isEmpty
+                ? Center(
                     child: Text(
                       'No checklists yet.\nTap + Add List to create one.',
                       textAlign: TextAlign.center,
                       style: _regular(16, color: _placeholder),
                     ),
-                  );
-                }
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) {
+                      final checklist = visible[index];
+                      final docId = checklist['docId'] as String;
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  itemCount: checklists.length,
-                  itemBuilder: (context, index) {
-                    final checklist = checklists[index];
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: ChecklistCard(
-                        title: checklist.title,
-                        subtitle: checklist.subtitle,
-                        items: checklist.items,
-                        showDeleteIcon: showDeleteIcons,
-                        onDelete: () => _confirmDeleteChecklist(
-                            checklist.id, checklist.title),
-                        onAddItem: () => _showAddItemDialog(checklist.id),
-                        onDeleteItem: (i) => _deleteItem(checklist.id, i),
-                        onToggleItem: (i) => _toggleItem(checklist.id, i),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: ChecklistCard(
+                          title: checklist['title'],
+                          subtitle: checklist['subtitle'],
+                          items: List<ChecklistItem>.from(
+                            (checklist['items'] as List).map(
+                              (e) => ChecklistItem(
+                                text: e['text'],
+                                checked: e['checked'],
+                              ),
+                            ),
+                          ),
+                          showDeleteIcon: showDeleteIcons,
+                          onDelete: () =>
+                              _confirmDeleteChecklist(docId, checklist['title']),
+                          onAddItem: () => _showAddItemDialog(docId),
+                          onDeleteItem: (i) => _deleteItem(docId, i),
+                          onToggleItem: (i) => _toggleItem(docId, i),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -220,6 +335,8 @@ class _ChecklistPageState extends State<ChecklistPage> {
   }
 
   Widget _buildPageHeader(BuildContext context) {
+    final canSave = _hasUnsavedChanges;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
@@ -243,14 +360,17 @@ class _ChecklistPageState extends State<ChecklistPage> {
                     setState(() => showDeleteIcons = !showDeleteIcons),
               ),
               const SizedBox(width: 8),
-              _GreenButton(
-                label: 'List Archive',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ArchivePage(checklistService: _checklistService),
+              GestureDetector(
+                onTap: canSave ? save : null,
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: canSave ? _green : _border,
+                    borderRadius: BorderRadius.circular(6),
                   ),
+                  alignment: Alignment.center,
+                  child: Text('Save', style: _bold(15)),
                 ),
               ),
             ],
@@ -339,7 +459,7 @@ class _StyledTextField extends StatelessWidget {
 
 // ─── Checklist Card ────────────────────────────────────────────────────────────
 
-class ChecklistCard extends StatelessWidget {
+class ChecklistCard extends StatefulWidget {
   final String title;
   final String subtitle;
   final List<ChecklistItem> items;
@@ -361,6 +481,13 @@ class ChecklistCard extends StatelessWidget {
     this.showDeleteIcon = false,
   });
 
+    @override
+  State<ChecklistCard> createState() => _ChecklistCardState();
+}
+
+class _ChecklistCardState extends State<ChecklistCard> {
+  bool _showDeleteItems = false;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -373,10 +500,10 @@ class ChecklistCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(title, style: _regular(22))),
-              if (showDeleteIcon)
+              Expanded(child: Text(widget.title, style: _regular(22))),
+              if (widget.showDeleteIcon)
                 GestureDetector(
-                  onTap: onDelete,
+                  onTap: widget.onDelete,
                   child: const Padding(
                     padding: EdgeInsets.only(left: 8),
                     child: Icon(Icons.close, size: 20, color: _placeholder),
@@ -386,12 +513,12 @@ class ChecklistCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 2),
-          Text(subtitle, style: _regular(14, color: _placeholder)),
+          Text(widget.subtitle, style: _regular(14, color: _placeholder)),
 
-          if (items.isNotEmpty) const SizedBox(height: 12),
+          if (widget.items.isNotEmpty) const SizedBox(height: 12),
 
           // Items
-          for (var i = 0; i < items.length; i++)
+          for (var i = 0; i < widget.items.length; i++)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
@@ -400,8 +527,8 @@ class ChecklistCard extends StatelessWidget {
                     width: 24,
                     height: 24,
                     child: Checkbox(
-                      value: items[i].checked,
-                      onChanged: (_) => onToggleItem?.call(i),
+                      value: widget.items[i].checked,
+                      onChanged: (_) => widget.onToggleItem?.call(i),
                       activeColor: _green,
                       checkColor: _dark,
                       shape: RoundedRectangleBorder(
@@ -414,25 +541,25 @@ class ChecklistCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      items[i].text,
+                      widget.items[i].text,
                       style: _regular(
                         15,
-                        color: items[i].checked ? _placeholder : _dark,
+                        color: widget.items[i].checked ? _placeholder : _dark,
                       ).copyWith(
-                        decoration: items[i].checked
+                        decoration: widget.items[i].checked
                             ? TextDecoration.lineThrough
                             : null,
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => onDeleteItem?.call(i),
-                    child: const Padding(
-                      padding: EdgeInsets.only(left: 8),
-                      child: Icon(Icons.delete_outline,
-                          size: 18, color: _placeholder),
+                  if (_showDeleteItems)
+                    GestureDetector(
+                      onTap: () => widget.onDeleteItem?.call(i),
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 8),
+                        child: Icon(Icons.delete_outline, size: 18, color: _placeholder),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -444,7 +571,7 @@ class ChecklistCard extends StatelessWidget {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: onAddItem,
+                  onTap: widget.onAddItem,
                   child: Container(
                     height: 40,
                     decoration: BoxDecoration(
@@ -459,15 +586,17 @@ class ChecklistCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _dark,
-                    borderRadius: BorderRadius.circular(6),
+                child: GestureDetector(
+                  onTap: () => setState(() => _showDeleteItems = !_showDeleteItems), 
+                  child: Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _dark,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('- Delete Items', style: _bold(15, color: Colors.white)),
                   ),
-                  alignment: Alignment.center,
-                  child: Text('- Delete Items',
-                      style: _bold(15, color: Colors.white)),
                 ),
               ),
             ],
