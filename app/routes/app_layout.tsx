@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Outlet, useMatch, useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "~/services/firebase_provider";
+import NotificationBell from "~/components/NotificationBell";
 
 const SEARCH_HINTS = [
     "Search by last name..",
@@ -130,6 +131,9 @@ export default function AppLayout() {
                             className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                         />
                     </div>
+
+                    {/* Notifications */}
+                    <NotificationBell />
 
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex shrink-0">

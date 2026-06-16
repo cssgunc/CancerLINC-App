@@ -13,17 +13,22 @@ import {
     where,
 } from "firebase/firestore";
 import { db } from "~/services/firebase_app";
+import {
+    normalizeStatus,
+    PATIENT_STATUSES,
+    statusLabel,
+    statusStyles,
+    type PatientStatus,
+} from "~/types/status";
 // search state lives in the URL so it survives navigating back from a member page
 
 // --- Types ---
-type Status = "active" | "follow-up" | "pending";
-
 type Patient = {
     id: string; // Firestore uid
     name: string;
     socialWorker: string;
     lastContact: number | null; // epoch millis or null if no contact yet
-    status: Status;
+    status: PatientStatus;
 };
 
 type SortField = "name" | "socialWorker" | "lastContact";
@@ -43,28 +48,6 @@ function formatDate(timestampMs: number | null) {
         year: "numeric",
         timeZone: EASTERN_TIME_ZONE,
     });
-}
-
-function statusLabel(status: Status) {
-    switch (status) {
-        case "active":
-            return "Active";
-        case "follow-up":
-            return "Follow-up";
-        case "pending":
-            return "Pending";
-    }
-}
-
-function statusStyles(status: Status) {
-    switch (status) {
-        case "active":
-            return "bg-green-50 text-green-700 ring-1 ring-green-200";
-        case "follow-up":
-            return "bg-yellow-50 text-yellow-800 ring-1 ring-yellow-200";
-        case "pending":
-            return "bg-gray-100 text-gray-700 ring-1 ring-gray-200";
-    }
 }
 
 // Firestore prefix-range search: matches names that start with the query string
@@ -108,14 +91,16 @@ export default function HomePage() {
         []
     );
     const [socialWorkerFilter, setSocialWorkerFilter] = useState("all");
-    const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+    const [statusFilter, setStatusFilter] = useState<PatientStatus | "all">(
+        "all"
+    );
     const [sortField, setSortField] = useState<SortField>("lastContact");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
     // Stat card counts (from aggregation queries — independent of pagination)
     const [totalCount, setTotalCount] = useState<number | null>(null);
     const [activeCount, setActiveCount] = useState<number | null>(null);
-    const [followUpCount, setFollowUpCount] = useState<number | null>(null);
+    const [urgentCount, setUrgentCount] = useState<number | null>(null);
 
     // Pagination cursors: stack of "last doc of each page" so we can go back
     const cursorStack = useRef<DocumentSnapshot[]>([]);
@@ -150,14 +135,14 @@ export default function HomePage() {
                 query(
                     usersRef,
                     where("role", "==", "patient"),
-                    where("status", "==", "follow-up")
+                    where("status", "==", "urgent")
                 )
             ),
         ])
-            .then(([total, active, followUp]) => {
+            .then(([total, active, urgent]) => {
                 setTotalCount(total.data().count);
                 setActiveCount(active.data().count);
-                setFollowUpCount(followUp.data().count);
+                setUrgentCount(urgent.data().count);
             })
             .catch(() => {
                 // Non-critical — stat cards just stay blank
@@ -343,7 +328,7 @@ export default function HomePage() {
                                 data.email,
                             socialWorker: data.assignedSocialWorkerName ?? "—",
                             lastContact: ts ? ts.toMillis() : null,
-                            status: (data.status as Status) ?? "pending",
+                            status: normalizeStatus(data.status),
                         };
                     });
 
@@ -383,7 +368,7 @@ export default function HomePage() {
                                 data.email,
                             socialWorker: data.assignedSocialWorkerName ?? "—",
                             lastContact: ts ? ts.toMillis() : null,
-                            status: (data.status as Status) ?? "pending",
+                            status: normalizeStatus(data.status),
                         };
                     });
 
@@ -477,8 +462,8 @@ export default function HomePage() {
                 {/* Stat Cards */}
                 <section className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     <StatCard label="Total Patients" value={totalCount} />
+                    <StatCard label="Urgent Cases" value={urgentCount} />
                     <StatCard label="Active Cases" value={activeCount} />
-                    <StatCard label="Follow-ups Needed" value={followUpCount} />
                 </section>
 
                 {/* Table */}
@@ -516,7 +501,9 @@ export default function HomePage() {
                                         value={statusFilter}
                                         onChange={(e) =>
                                             setStatusFilter(
-                                                e.target.value as Status | "all"
+                                                e.target.value as
+                                                    | PatientStatus
+                                                    | "all"
                                             )
                                         }
                                         className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600"
@@ -524,11 +511,11 @@ export default function HomePage() {
                                         <option value="all">
                                             All statuses
                                         </option>
-                                        <option value="active">Active</option>
-                                        <option value="follow-up">
-                                            Follow-up
-                                        </option>
-                                        <option value="pending">Pending</option>
+                                        {PATIENT_STATUSES.map((status) => (
+                                            <option key={status} value={status}>
+                                                {statusLabel(status)}
+                                            </option>
+                                        ))}
                                     </select>
                                 </label>
 

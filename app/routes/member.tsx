@@ -51,6 +51,12 @@ import {
     validateChatImageFile,
 } from "~/services/chat_attachment_service";
 import { useAuth } from "~/services/firebase_provider";
+import {
+    normalizeStatus,
+    PATIENT_STATUSES,
+    statusLabel,
+    type PatientStatus,
+} from "~/types/status";
 
 type ChatMessage = {
     id: string;
@@ -74,12 +80,10 @@ type UserProfile = {
     firstName?: string;
     lastName?: string;
     role?: "patient" | "social_worker" | "admin";
-    status?: "active" | "follow-up" | "pending";
+    status?: PatientStatus;
     assignedSocialWorkerId?: string;
     assignedSocialWorkerName?: string;
 };
-
-type PatientStatus = "active" | "follow-up" | "pending";
 
 type SocialWorkerOption = {
     id: string;
@@ -88,7 +92,6 @@ type SocialWorkerOption = {
 
 const PAGE_SIZE = 20;
 const EASTERN_TIME_ZONE = "America/New_York";
-const PATIENT_STATUSES: PatientStatus[] = ["active", "follow-up", "pending"];
 
 function formatPersonName(profile?: Partial<UserProfile> | null) {
     if (!profile) return "";
@@ -134,7 +137,7 @@ export default function MemberPage() {
     );
     const [selectedSocialWorkerId, setSelectedSocialWorkerId] = useState("");
     const [selectedStatus, setSelectedStatus] =
-        useState<PatientStatus>("pending");
+        useState<PatientStatus>("closed");
     const [isSavingAssignment, setIsSavingAssignment] = useState(false);
     const [isSavingStatus, setIsSavingStatus] = useState(false);
     const [memberActionError, setMemberActionError] = useState("");
@@ -162,44 +165,50 @@ export default function MemberPage() {
         null
     );
     const fetchedSenderIdsRef = useRef<Set<string>>(new Set());
+    const initializedWorkerRef = useRef(false);
 
     const chatId = useMemo(() => {
         return userId ?? "";
     }, [userId]);
 
+    // Live-subscribe to the patient doc so the displayed status (and assignment)
+    // always reflects the DB — including status changes made by Cloud Functions
+    // when a new message arrives.
     useEffect(() => {
         if (!userId) {
             setChatUserProfile(null);
             return;
         }
 
-        let isActive = true;
+        initializedWorkerRef.current = false;
 
-        async function loadUserProfile() {
-            const snapshot = await getDoc(doc(db, "users", userId));
-            if (!isActive) return;
+        const unsubscribe = onSnapshot(
+            doc(db, "users", userId),
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    setChatUserProfile(null);
+                    return;
+                }
 
-            if (!snapshot.exists()) {
+                const data = snapshot.data() as Omit<UserProfile, "uid">;
+                setChatUserProfile({ uid: snapshot.id, ...data });
+                setSelectedStatus(normalizeStatus(data.status));
+
+                // Only seed the dropdown on first load so live updates don't
+                // clobber an in-progress selection the user hasn't assigned yet.
+                if (!initializedWorkerRef.current) {
+                    setSelectedSocialWorkerId(
+                        data.assignedSocialWorkerId ?? user?.uid ?? ""
+                    );
+                    initializedWorkerRef.current = true;
+                }
+            },
+            () => {
                 setChatUserProfile(null);
-                return;
             }
+        );
 
-            const data = snapshot.data() as Omit<UserProfile, "uid">;
-            const profile = { uid: snapshot.id, ...data };
-            setChatUserProfile(profile);
-            setSelectedStatus((data.status as PatientStatus) ?? "pending");
-            setSelectedSocialWorkerId(
-                data.assignedSocialWorkerId ?? user?.uid ?? ""
-            );
-        }
-
-        loadUserProfile().catch(() => {
-            if (isActive) setChatUserProfile(null);
-        });
-
-        return () => {
-            isActive = false;
-        };
+        return unsubscribe;
     }, [user?.uid, userId]);
 
     useEffect(() => {
@@ -679,7 +688,7 @@ export default function MemberPage() {
                                 <p className="text-sm text-[#4B5563]">
                                     {chatUserProfile?.assignedSocialWorkerName ||
                                         "No social worker assigned"}{" "}
-                                    · {selectedStatus}
+                                    · {statusLabel(selectedStatus)}
                                 </p>
                             </div>
                         </div>
@@ -749,13 +758,18 @@ export default function MemberPage() {
                                         }
                                         disabled={
                                             isSavingAssignment ||
-                                            !selectedSocialWorkerId
+                                            !selectedSocialWorkerId ||
+                                            selectedSocialWorkerId ===
+                                                chatUserProfile?.assignedSocialWorkerId
                                         }
                                         className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         {isSavingAssignment
                                             ? "Saving..."
-                                            : "Assign"}
+                                            : selectedSocialWorkerId ===
+                                                chatUserProfile?.assignedSocialWorkerId
+                                              ? "Assigned"
+                                              : "Assign"}
                                     </button>
                                 </div>
 
@@ -783,7 +797,7 @@ export default function MemberPage() {
                                                             : "bg-[#F3F4F6] text-[#4B5563] hover:bg-[#E5E7EB]"
                                                     } disabled:cursor-not-allowed disabled:opacity-60`}
                                                 >
-                                                    {status}
+                                                    {statusLabel(status)}
                                                 </button>
                                             );
                                         })}
