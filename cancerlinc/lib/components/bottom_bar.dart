@@ -11,21 +11,67 @@ class BottomBar extends StatefulWidget {
   const BottomBar({super.key});
 
   @override
-  State<BottomBar> createState() => _BottomBarState();
+  State<BottomBar> createState() => BottomBarState();
 }
 
-class _BottomBarState extends State<BottomBar> {
+class BottomBarState extends State<BottomBar> {
   int _currentIndex = 0;
   bool _isScrolled = false;
   static const _dividerColor = Color(0xFFD9D9D9);
   static const _appBarBase = Colors.white;
   static const _appBarScrollTint = Color(0xFFF2F2F2);
+  bool _checklistHasUnsavedChanges = false;
+  final GlobalKey<ChecklistPageState> _checklistKey = GlobalKey<ChecklistPageState>();
 
-  void _goToTab(int index) =>
+  void _goToTab(int index) {
+    final leavingChecklist = _currentIndex == 2 && index != 2;
+    if (leavingChecklist && _checklistHasUnsavedChanges) {
+      _showUnsavedChangesDialog(index);
+    } else {
       setState(() {
         _currentIndex = index;
         _isScrolled = false;
       });
+    }
+  }
+
+  void _showUnsavedChangesDialog(int targetIndex) {
+    showAdaptiveDialog(
+      context: context,
+      builder: (_) => AlertDialog.adaptive(
+        title: const Text('Unsaved Changes'),
+        content: const Text('You have unsaved changes in your checklist.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _checklistHasUnsavedChanges = false;
+                _currentIndex = targetIndex;
+                _isScrolled = false;
+              });
+            },
+            child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _checklistKey.currentState?.save();
+              setState(() {
+                _currentIndex = targetIndex;
+                _isScrolled = false;
+              });
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
@@ -55,6 +101,25 @@ class _BottomBarState extends State<BottomBar> {
       ),
       (route) => false,
     );
+  }
+
+  late final List<Widget> _pages; // pages cannot be static due to callback
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      HomePage(onTabChange: _goToTab),
+      const ChatPage(),
+      ChecklistPage(
+        key: _checklistKey,
+        onUnsavedChanges: (hasChanges) {
+          setState(() => _checklistHasUnsavedChanges = hasChanges);
+        },
+      ),
+      const ReferralsPage(),
+      const CalendarPage(),
+    ];
   }
 
   static const List<String> _titles = [
@@ -104,7 +169,6 @@ class _BottomBarState extends State<BottomBar> {
       body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (_currentIndex != 0 && _currentIndex != 3) return false;
-
           final shouldBeScrolled = notification.metrics.pixels > 0;
           if (shouldBeScrolled != _isScrolled) {
             setState(() => _isScrolled = shouldBeScrolled);
@@ -115,13 +179,7 @@ class _BottomBarState extends State<BottomBar> {
           duration: const Duration(milliseconds: 120),
           child: KeyedSubtree(
             key: ValueKey(_currentIndex),
-            child: [
-              HomePage(onTabChange: _goToTab),
-              const ChatPage(),
-              const ChecklistPage(),
-              const ReferralsPage(),
-              const CalendarPage(),
-            ][_currentIndex],
+            child: _pages[_currentIndex],
           ),
         ),
       ),
