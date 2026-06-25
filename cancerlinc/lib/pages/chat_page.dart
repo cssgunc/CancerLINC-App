@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cancerlinc/services/chat_service.dart';
+import 'package:cancerlinc/services/notification_service.dart';
 
 // ── Message group data class ───────────────────────────────────────────────────
 
@@ -34,6 +36,13 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _loadChat();
+    // initial pop up for notification permission and setup
+    _requestNotificationPermission();
+  }
+
+  // initializes notification service and requests permission to show notifications
+  Future<void> _requestNotificationPermission() async {
+    await NotificationService().requestPermissionAndInit(context);
   }
 
   Future<void> _loadChat() async {
@@ -118,7 +127,7 @@ class _ChatHeader extends StatelessWidget {
               style: const TextStyle(fontSize: 14, color: Colors.black),
             ),
           ),
-          _HeaderIconButton(icon: Icons.search),
+          const _NotificationIconButton(), //notificaiton bell icon button
           const SizedBox(width: 16),
           _HeaderIconButton(icon: Icons.phone),
         ],
@@ -141,6 +150,101 @@ class _HeaderIconButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: Colors.white, size: 24),
+    );
+  }
+}
+
+// ── Notification bell button ──────────────────────────────────────────────────
+
+class _NotificationIconButton extends StatefulWidget {
+  const _NotificationIconButton();
+
+  @override
+  State<_NotificationIconButton> createState() =>
+      _NotificationIconButtonState();
+}
+
+class _NotificationIconButtonState extends State<_NotificationIconButton> {
+  AuthorizationStatus _status = AuthorizationStatus.notDetermined;
+
+  @override
+  void initState() {
+    super.initState();
+    // check current status on load so icon shows correct state
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final status = await NotificationService().getPermissionStatus();
+    if (mounted) setState(() => _status = status);
+  }
+
+  Future<void> _onTap() async {
+    final isGranted = _status == AuthorizationStatus.authorized;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Message Notifications'),
+        content: Text(
+          isGranted
+              ? 'Notifications are enabled. You\'ll be alerted when '
+                'your social worker sends you a message.'
+              : 'Enable notifications to be alerted when your social '
+                'worker sends you a message.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          // Only show Enable button if not already granted
+          if (!isGranted)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final granted = await NotificationService()
+                    .requestPermissionAndInit(context);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        granted
+                            ? 'Notifications enabled!'
+                            : 'Permission denied. Enable in device Settings.',
+                      ),
+                    ),
+                  );
+                  _loadStatus(); // refresh icon after permission decision
+                }
+              },
+              child: const Text('Enable'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEnabled = _status == AuthorizationStatus.authorized;
+
+    return GestureDetector(
+      onTap: _onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          isEnabled ? Icons.notifications_active : Icons.notifications_off,
+          // Amber when on so it's visually distinct, white when off
+          color: isEnabled ? Colors.amber : Colors.white,
+          size: 24,
+        ),
+      ),
     );
   }
 }
