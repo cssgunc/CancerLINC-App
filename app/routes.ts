@@ -6,6 +6,7 @@ export default [
         index("routes/_index.tsx"),
         route("profile", "routes/profile.tsx"),
         route("calendar", "routes/calendar.tsx"),
+        route("admin/users/:userId", "routes/admin_user.tsx"),
     ]),
 
     //routes require user to not be logged in

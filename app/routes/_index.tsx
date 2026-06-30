@@ -310,16 +310,12 @@ export default function HomePage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <button
-                                                onClick={() =>
-                                                    alert(
-                                                        `Open profile for ${p.name}`
-                                                    )
-                                                }
-                                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
+                                            <Link
+                                                to={`/admin/users/${p.id}`}
+                                                className="inline-block rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
                                             >
                                                 View Profile
-                                            </button>
+                                            </Link>
                                         </td>
                                     </tr>
                                 ))}
