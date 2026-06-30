@@ -4,6 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cancerlinc/services/chat_service.dart';
+import 'package:cancerlinc/components/call_number.dart';
+
+/// FEATURE FLAG (Ticket M4) — show a non-blocking "pending verification"
+/// notice to socially-unverified (non-banned) patients. They can STILL chat;
+/// the banner just tells them verification grants increased priority.
+/// To hide the banner: set this to `false`.
+/// To fully remove M4 later: set false (or delete this const, the
+/// `_unverifiedBanner()` widget, and its use in `build()` marked "// M4").
+const bool kShowUnverifiedChatNotice = true;
 
 // ── Message group data class ───────────────────────────────────────────────────
 
@@ -29,6 +38,8 @@ class _ChatPageState extends State<ChatPage> {
   String? _chatId;
   String _workerName = 'Chat with CancerLINC';
   bool _loading = true;
+  bool _isBanned = false;
+  bool _isVerified = false;
 
   @override
   void initState() {
@@ -41,8 +52,11 @@ class _ChatPageState extends State<ChatPage> {
     if (uid != null) {
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final name = userDoc.data()?['assignedSocialWorkerName'] as String?;
+      final data = userDoc.data();
+      final name = data?['assignedSocialWorkerName'] as String?;
       if (name != null && name.isNotEmpty) _workerName = "Your contact: $name";
+      _isBanned = data?['isBanned'] == true;
+      _isVerified = data?['isVerified'] == true;
     }
     final doc = await _chatService.getUserChat();
     if (mounted) {
@@ -53,32 +67,109 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Returns a centered notice with [message] text and a tappable support number.
+  Widget _blockedNotice(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF999999)),
+            ),
+            const SizedBox(height: 12),
+            CallButton(phoneNumber: cancerLincSupportPhone),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// M4: non-blocking banner for unverified (non-banned) patients. They can
+  /// still chat; this only explains that verification grants increased priority.
+  Widget _unverifiedBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: const Color(0xFFFFF8E1),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: Color(0xFF8D6E63)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text(
+                  "Your account isn't verified yet — you'll have increased "
+                  'priority once verified. Questions? Call CancerLINC at ',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+                ),
+                CallButton(phoneNumber: cancerLincSupportPhone),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Determine whether the user is blocked and which copy to show.
+    // Evaluated only once loading completes; null means not blocked.
+    String? blockedMessage;
+    if (!_loading) {
+      if (_isBanned && _isVerified) {
+        // M3: banned user who was previously verified.
+        blockedMessage =
+            'Your chat access has been removed. If you think this is a mistake, contact CancerLINC at';
+      } else if (_isBanned) {
+        // M3: banned user who was never verified.
+        blockedMessage =
+            "We couldn't verify your account, so chat isn't available. "
+            "If you're a CancerLINC client, please reach out at";
+      }
+    }
+    final blocked = blockedMessage != null;
+
+    // M4: unverified (non-banned) patients keep full chat access but see a
+    // non-blocking notice that verification grants increased priority.
+    final showUnverifiedNotice =
+        !_loading && !blocked && !_isVerified && kShowUnverifiedChatNotice;
+
     return SafeArea(
       child: Column(
         children: [
           _ChatHeader(workerName: _workerName),
+          if (showUnverifiedNotice) _unverifiedBanner(), // M4
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _chatId == null
-                    ? const Center(
-                        child: Text(
-                          'Send a text to get started!',
-                          style: TextStyle(color: Color(0xFF999999)),
-                        ),
-                      )
-                    : _MessagesList(
-                        chatId: _chatId!,
-                        chatService: _chatService,
-                      ),
+                : blocked
+                    ? _blockedNotice(blockedMessage)
+                    : _chatId == null
+                        ? const Center(
+                            child: Text(
+                              'Send a text to get started!',
+                              style: TextStyle(color: Color(0xFF999999)),
+                            ),
+                          )
+                        : _MessagesList(
+                            chatId: _chatId!,
+                            chatService: _chatService,
+                          ),
           ),
-          if (!_loading)
+          if (!_loading && !blocked)
             _ChatInput(
               chatId: _chatId,
               chatService: _chatService,
               onChatCreated: (id) => setState(() => _chatId = id),
+              isBanned: _isBanned,
             ),
         ],
       ),
@@ -436,11 +527,13 @@ class _ChatInput extends StatefulWidget {
   final String? chatId;
   final ChatService chatService;
   final ValueChanged<String> onChatCreated;
+  final bool isBanned;
 
   const _ChatInput({
     required this.chatId,
     required this.chatService,
     required this.onChatCreated,
+    required this.isBanned,
   });
 
   @override
@@ -458,6 +551,7 @@ class _ChatInputState extends State<_ChatInput> {
   }
 
   Future<void> _send() async {
+    if (widget.isBanned) return; // M3
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
 
@@ -481,6 +575,7 @@ class _ChatInputState extends State<_ChatInput> {
   }
 
   Future<void> _pickAndSendImage() async {
+    if (widget.isBanned) return; // M3
     if (_sending) return;
     final picker = ImagePicker();
     final picked =

@@ -100,8 +100,9 @@ class AuthService {
       'phoneNumber': '',
       'profilePhotoUrl': firebaseUser.photoURL ?? '',
       'role': 'patient',
-      'status': 'follow-up',
-      'isVerified': firebaseUser.emailVerified,
+      'status': 'closed',
+      'isVerified': false,
+      'isBanned': false,
       'updatedAt': now,
     };
 
@@ -121,7 +122,6 @@ class AuthService {
     final backfill = <String, dynamic>{
       for (final entry in defaults.entries)
         if (!_hasMeaningfulValue(existingData[entry.key])) entry.key: entry.value,
-      'isVerified': firebaseUser.emailVerified,
       'updatedAt': now,
     };
 
