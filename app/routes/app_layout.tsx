@@ -1,8 +1,17 @@
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Outlet, useMatch, useNavigate, useSearchParams } from "react-router";
+import {
+    Link,
+    Outlet,
+    useLocation,
+    useMatch,
+    useNavigate,
+    useSearchParams,
+} from "react-router";
 import { useAuth } from "~/services/firebase_provider";
 import NotificationBell from "~/components/NotificationBell";
+import UnverifiedIndicator from "~/components/UnverifiedIndicator";
+import { isSuperuser } from "~/services/staff_admin_service";
 
 const SEARCH_HINTS = [
     "Search by last name..",
@@ -13,8 +22,11 @@ const SEARCH_HINTS = [
 export default function AppLayout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const onMemberPage = useMatch("/member/:user");
+    const navState = location.state as { from?: string; view?: unknown } | null;
+    const backTo = navState?.from ?? "/";
     const [memberSearchValue, setMemberSearchValue] = useState("");
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [activeHintIndex, setActiveHintIndex] = useState(0);
@@ -86,19 +98,32 @@ export default function AppLayout() {
                     {onMemberPage ? (
                         <button
                             type="button"
-                            onClick={() => navigate("/")}
+                            onClick={() =>
+                                navigate(backTo, {
+                                    state: navState?.view
+                                        ? { view: navState.view }
+                                        : undefined,
+                                })
+                            }
                             className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 shrink-0"
                         >
                             ← Back
                         </button>
                     ) : null}
 
-                    {/* Logo */}
-                    <img
-                        src="/CancerLINC-Logo-1.png"
-                        alt="CancerLINC Logo"
-                        className="w-16 mb-4 shrink-0"
-                    />
+                    {/* Logo — routes back to the dashboard */}
+                    <button
+                        type="button"
+                        onClick={() => navigate("/")}
+                        aria-label="Go to dashboard"
+                        className="shrink-0 cursor-pointer"
+                    >
+                        <img
+                            src="/CancerLINC-Logo-1.png"
+                            alt="CancerLINC Logo"
+                            className="w-16 mb-4"
+                        />
+                    </button>
 
                     {/* Search */}
                     <div className="relative mx-4 flex-1">
@@ -122,6 +147,7 @@ export default function AppLayout() {
                             </div>
                         ) : null}
                         <input
+                            id="topbar-search"
                             value={inputValue}
                             onChange={(e) => handleSearchChange(e.target.value)}
                             onFocus={() => setIsSearchFocused(true)}
@@ -132,12 +158,23 @@ export default function AppLayout() {
                         />
                     </div>
 
-                    {/* Notifications */}
-                    <NotificationBell />
+                    {/* Notifications + Unverified indicator */}
+                    <div className="flex items-center gap-2">
+                        <NotificationBell />
+                        <UnverifiedIndicator />
+                    </div>
 
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex shrink-0">
                         <span>Welcome, {user?.displayName}</span>
+                        {isSuperuser(user?.email) ? (
+                            <Link
+                                to="/staff"
+                                className="font-medium text-gray-900 underline underline-offset-2"
+                            >
+                                Staff
+                            </Link>
+                        ) : null}
                         <button
                             type="button"
                             onClick={logout}

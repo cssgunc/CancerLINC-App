@@ -48,6 +48,8 @@ lastName                String
 lastNameLower           String   — lowercase copy of lastName, used for case-insensitive search
 role                    String   — "patient" | "social_worker" | "admin"
 isVerified              Boolean
+isBanned                Boolean  — optional; true once a patient is denied by staff
+disabled                Boolean  — optional; mirrors Firebase Auth disabled flag, set by Cloud Function
 phoneNumber             String
 hospital                String   — optional, relevant for social workers
 profilePhotoUrl         String

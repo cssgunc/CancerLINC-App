@@ -83,6 +83,8 @@ type UserProfile = {
     status?: PatientStatus;
     assignedSocialWorkerId?: string;
     assignedSocialWorkerName?: string;
+    isVerified?: boolean;
+    isBanned?: boolean;
 };
 
 type SocialWorkerOption = {
@@ -140,6 +142,7 @@ export default function MemberPage() {
         useState<PatientStatus>("closed");
     const [isSavingAssignment, setIsSavingAssignment] = useState(false);
     const [isSavingStatus, setIsSavingStatus] = useState(false);
+    const [isSavingVerification, setIsSavingVerification] = useState(false);
     const [memberActionError, setMemberActionError] = useState("");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
@@ -665,6 +668,80 @@ export default function MemberPage() {
         }
     }
 
+    async function handleVerify() {
+        if (!userId) return;
+
+        const previousIsVerified = chatUserProfile?.isVerified;
+        const previousIsBanned = chatUserProfile?.isBanned;
+        setMemberActionError("");
+        setChatUserProfile((current) =>
+            current
+                ? { ...current, isVerified: true, isBanned: false }
+                : current
+        );
+        setIsSavingVerification(true);
+
+        try {
+            await updateDoc(doc(db, "users", userId), {
+                isVerified: true,
+                isBanned: false,
+                updatedAt: Timestamp.now(),
+            });
+        } catch {
+            setChatUserProfile((current) =>
+                current
+                    ? {
+                          ...current,
+                          isVerified: previousIsVerified,
+                          isBanned: previousIsBanned,
+                      }
+                    : current
+            );
+            setMemberActionError(
+                "Unable to verify the patient right now. Please try again."
+            );
+        } finally {
+            setIsSavingVerification(false);
+        }
+    }
+
+    async function handleDeny() {
+        if (!userId) return;
+
+        const previousIsVerified = chatUserProfile?.isVerified;
+        const previousIsBanned = chatUserProfile?.isBanned;
+        setMemberActionError("");
+        setChatUserProfile((current) =>
+            current
+                ? { ...current, isBanned: true, isVerified: false }
+                : current
+        );
+        setIsSavingVerification(true);
+
+        try {
+            await updateDoc(doc(db, "users", userId), {
+                isBanned: true,
+                isVerified: false,
+                updatedAt: Timestamp.now(),
+            });
+        } catch {
+            setChatUserProfile((current) =>
+                current
+                    ? {
+                          ...current,
+                          isVerified: previousIsVerified,
+                          isBanned: previousIsBanned,
+                      }
+                    : current
+            );
+            setMemberActionError(
+                "Unable to deny the patient right now. Please try again."
+            );
+        } finally {
+            setIsSavingVerification(false);
+        }
+    }
+
     return (
         <div
             className="flex h-full flex-col overflow-hidden px-4 pb-3 pt-5 text-black"
@@ -801,6 +878,49 @@ export default function MemberPage() {
                                                 </button>
                                             );
                                         })}
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="text-sm font-semibold uppercase tracking-[0.16em] text-[#666666]">
+                                        Verification
+                                    </span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {/* Current state pill */}
+                                        <span className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white">
+                                            {chatUserProfile?.isBanned
+                                                ? "Denied"
+                                                : chatUserProfile?.isVerified
+                                                  ? "Verified"
+                                                  : "Unverified"}
+                                        </span>
+                                        {/* Verify action — hidden when already verified and not banned */}
+                                        {!chatUserProfile?.isVerified ||
+                                        chatUserProfile?.isBanned ? (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void handleVerify()
+                                                }
+                                                disabled={isSavingVerification}
+                                                className="rounded-full bg-[#F3F4F6] px-4 py-2 text-sm font-medium text-[#4B5563] capitalize transition-colors hover:bg-[#E5E7EB] disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                Verify
+                                            </button>
+                                        ) : null}
+                                        {/* Deny action — hidden when already banned */}
+                                        {!chatUserProfile?.isBanned ? (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void handleDeny()
+                                                }
+                                                disabled={isSavingVerification}
+                                                className="rounded-full bg-[#F3F4F6] px-4 py-2 text-sm font-medium text-[#4B5563] capitalize transition-colors hover:bg-[#E5E7EB] disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                Deny
+                                            </button>
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>
