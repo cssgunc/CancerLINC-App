@@ -427,7 +427,18 @@ export const setStaffDisabled = onCall(async (request) => {
         throw new HttpsError("invalid-argument", "disabled must be a boolean.");
     }
 
-    await getAuth().updateUser(uid, { disabled });
+    try {
+        await getAuth().updateUser(uid, { disabled });
+    } catch (err: unknown) {
+        const firebaseCode = (err as { code?: string }).code;
+        if (firebaseCode === "auth/user-not-found") {
+            throw new HttpsError(
+                "not-found",
+                "No auth account found for this user."
+            );
+        }
+        throw err;
+    }
     await db.doc(`users/${uid}`).update({ disabled });
 
     return { success: true };
@@ -450,7 +461,14 @@ export const deleteStaffAccount = onCall(async (request) => {
         throw new HttpsError("invalid-argument", "uid is required.");
     }
 
-    await getAuth().deleteUser(uid);
+    try {
+        await getAuth().deleteUser(uid);
+    } catch (err: unknown) {
+        const firebaseCode = (err as { code?: string }).code;
+        if (firebaseCode !== "auth/user-not-found") {
+            throw err;
+        }
+    }
     await db.doc(`users/${uid}`).delete();
 
     return { success: true };
