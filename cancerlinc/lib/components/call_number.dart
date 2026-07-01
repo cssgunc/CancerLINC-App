@@ -3,6 +3,10 @@
 */
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+/// CancerLINC support line, shown to blocked patients in the chat page.
+const String cancerLincSupportPhone = '804-562-0371';
+
 class CallButton extends StatelessWidget {
   final String phoneNumber;
 
