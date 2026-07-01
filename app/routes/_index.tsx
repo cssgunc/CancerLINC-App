@@ -123,11 +123,18 @@ export default function HomePage() {
     useEffect(() => {
         const usersRef = collection(db, "users");
         Promise.all([
-            getCountFromServer(query(usersRef, where("role", "==", "patient"))),
             getCountFromServer(
                 query(
                     usersRef,
                     where("role", "==", "patient"),
+                    where("isVerified", "==", true)
+                )
+            ),
+            getCountFromServer(
+                query(
+                    usersRef,
+                    where("role", "==", "patient"),
+                    where("isVerified", "==", true),
                     where("status", "==", "active")
                 )
             ),
@@ -135,6 +142,7 @@ export default function HomePage() {
                 query(
                     usersRef,
                     where("role", "==", "patient"),
+                    where("isVerified", "==", true),
                     where("status", "==", "urgent")
                 )
             ),
@@ -199,6 +207,7 @@ export default function HomePage() {
                 const usersRef = collection(db, "users");
                 const constraints: Parameters<typeof query>[1][] = [
                     where("role", "==", "patient"),
+                    where("isVerified", "==", true),
                 ];
 
                 if (debouncedQuery.length > 0) {
@@ -208,6 +217,7 @@ export default function HomePage() {
                             query(
                                 usersRef,
                                 where("role", "==", "patient"),
+                                where("isVerified", "==", true),
                                 where("lastNameLower", ">=", lo),
                                 where("lastNameLower", "<", hi),
                                 orderBy("lastNameLower"),
@@ -226,6 +236,7 @@ export default function HomePage() {
                                 query(
                                     usersRef,
                                     where("role", "==", "patient"),
+                                    where("isVerified", "==", true),
                                     where("firstName", ">=", firstLo),
                                     where("firstName", "<", firstHi),
                                     orderBy("firstName"),
@@ -288,6 +299,7 @@ export default function HomePage() {
                             query(
                                 usersRef,
                                 where("role", "==", "patient"),
+                                where("isVerified", "==", true),
                                 where("assignedSocialWorkerId", "in", ids),
                                 limit(PAGE_SIZE)
                             )

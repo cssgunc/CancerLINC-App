@@ -28,6 +28,10 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if canReadUserProfile(userId);
+
+      allow update: if isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isVerified', 'isBanned', 'status', 'assignedSocialWorkerId', 'assignedSocialWorkerName', 'updatedAt']);
     }
 
     match /chats/{chatId} {
