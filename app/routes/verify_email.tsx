@@ -8,32 +8,26 @@ export default function VerifyEmail() {
     const { user } = useAuth();
     const [checkingVerification, setCheckingVerification] = useState(false);
     const [resendingEmail, setResendingEmail] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [resendSuccess, setResendSuccess] = useState(false);
 
     const onClickContinue = async () => {
         if (!user) {
-            setError("You're not signed in. Please log in again!");
+            alert("You’re not signed in. Please log in again.");
+            navigate("/login");
             return;
         }
 
-        setError(null);
         setCheckingVerification(true);
         try {
+            // Firebase doesn't automatically refresh `emailVerified` just because
+            // the user clicked the verification link in a different tab/window.
             await user.reload();
 
             if (!user.emailVerified) {
-                setError(
-                    "Email not verified yet. Please click the link in your email inbox first."
-                );
+                alert("Please verify your email before continuing.");
                 return;
             }
 
             navigate("/");
-        } catch {
-            setError(
-                "Something went wrong. Please check your connection and try again."
-            );
         } finally {
             setCheckingVerification(false);
         }
@@ -41,29 +35,15 @@ export default function VerifyEmail() {
 
     const onClickResendEmail = async () => {
         if (!user) {
-            setError("You're not signed in. Please log in again.");
+            alert("You’re not signed in. Please log in again.");
+            navigate("/login");
             return;
         }
 
-        setError(null);
-        setResendSuccess(false);
         setResendingEmail(true);
         try {
             await sendEmailVerification(user);
-            setResendSuccess(true);
-        } catch (err: unknown) {
-            if (
-                err instanceof Error &&
-                (err as { code?: string }).code === "auth/too-many-requests"
-            ) {
-                setError(
-                    "Too many attempts. Please wait a moment before requesting a new link."
-                );
-            } else {
-                setError(
-                    "Failed to send verification email. Please try again."
-                );
-            }
+            alert("Verification email sent. Please check your inbox.");
         } finally {
             setResendingEmail(false);
         }
@@ -77,28 +57,17 @@ export default function VerifyEmail() {
                         {"<"} Back to login
                     </p>
                 </Link>
-
-                <div className="flex flex-col items-center mb-6 mt-8">
+                <p>
+                    <br></br>
+                    <br></br>
+                </p>
+                <div className="flex flex-col items-center mb-6">
                     <h2 className="text-2xl text-gray-800">Verify Email</h2>
                     <p className="text-gray-500 text-center text-sm mt-2">
-                        A verification link was sent to{" "}
-                        <span className="font-medium text-gray-700">
-                            {user?.email ?? "your email"}
-                        </span>
-                        . Please click the link to verify your account.
+                        A verification link was sent to your email. Please click
+                        the link to verify your account.
                     </p>
                 </div>
-
-                {error && (
-                    <p className="text-red-500 text-sm text-center mb-4">
-                        {error}
-                    </p>
-                )}
-                {resendSuccess && (
-                    <p className="text-green-600 text-sm text-center mb-4">
-                        Verification email sent. Please check your inbox.
-                    </p>
-                )}
 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                     After clicking the link, click below.
@@ -118,7 +87,7 @@ export default function VerifyEmail() {
                     onClick={onClickResendEmail}
                     disabled={resendingEmail}
                 >
-                    {resendingEmail ? "Sending…" : "Send New Link"}
+                    {resendingEmail ? "SENDING…" : "Send New Link"}
                 </button>
             </div>
         </div>
