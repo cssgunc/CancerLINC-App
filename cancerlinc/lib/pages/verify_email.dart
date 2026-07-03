@@ -7,7 +7,7 @@ import 'package:cancerlinc/components/bottom_bar.dart';
 class VerifyEmail extends StatefulWidget {
   final String email;
   final bool isSignup;
-  const VerifyEmail({Key? key, required this.email, this.isSignup = false}) : super(key: key);
+  const VerifyEmail({super.key, required this.email, this.isSignup = false});
 
   @override
   State<VerifyEmail> createState() => _VerifyEmailState();

@@ -3,12 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/forgot_password.dart';
 import 'package:cancerlinc/pages/create_account.dart';
-import 'package:cancerlinc/pages/home_page.dart';
 import 'package:cancerlinc/components/bottom_bar.dart';
 import 'package:cancerlinc/services/auth.dart';
 
 class LoginPage extends StatefulWidget {
-    const LoginPage({Key? key}) : super(key: key);
+    const LoginPage({super.key});
 
     @override
     State<LoginPage> createState() => _LoginPageState();

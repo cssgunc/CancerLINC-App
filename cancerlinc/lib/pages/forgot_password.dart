@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/pages/verify_email.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/auth.dart';
 
 class ForgotPassword extends StatefulWidget {
   final String? email;
-  const ForgotPassword({Key? key, this.email}) : super(key: key);
+  const ForgotPassword({super.key, this.email});
 
   @override
   State<ForgotPassword> createState() => _ForgotPasswordState();
@@ -37,7 +35,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
               child: const Padding(
                 padding: EdgeInsets.only(top: 30.0),
                 child: Row(children: [
-                  const Padding(padding: EdgeInsets.only(left: 8.0)), 
+                  Padding(padding: EdgeInsets.only(left: 8.0)), 
                   Icon(Icons.arrow_back_ios), 
                   Text("Back to login")]),
               ),

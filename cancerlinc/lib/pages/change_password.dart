@@ -1,10 +1,9 @@
-import 'package:cancerlinc/pages/login_page.dart';
 import 'package:flutter/material.dart';
 
 class ChangePasswordPage extends StatefulWidget {
 	final String code; // verification code passed from forgot_password.dart
 
-	const ChangePasswordPage({Key? key, required this.code}) : super(key: key);
+	const ChangePasswordPage({super.key, required this.code});
 
 	@override
 	State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -99,7 +98,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               child: const Padding(
                 padding: EdgeInsets.only(top: 30.0),
                 child: Row(children: [
-                  const Padding(padding: EdgeInsets.only(left: 8.0)), 
+                  Padding(padding: EdgeInsets.only(left: 8.0)), 
                   Icon(Icons.arrow_back_ios), 
                   Text("Back to login")]),
               ),

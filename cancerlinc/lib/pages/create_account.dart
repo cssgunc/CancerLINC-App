@@ -9,7 +9,7 @@ import 'package:cancerlinc/pages/verify_email.dart';
 
 
 class CreateAccountPage extends StatefulWidget {
-  const CreateAccountPage({Key? key}) : super(key: key);
+  const CreateAccountPage({super.key});
 
 
   @override
@@ -145,7 +145,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 child: const Padding(
                   padding: EdgeInsets.only(top: 30.0),
                   child: Row(children: [
-                    const Padding(padding: EdgeInsets.only(left: 8.0)),
+                    Padding(padding: EdgeInsets.only(left: 8.0)),
                     Icon(Icons.arrow_back_ios),
                     Text("Back to login")]),
                 ),
