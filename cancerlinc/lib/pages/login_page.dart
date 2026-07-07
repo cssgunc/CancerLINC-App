@@ -58,14 +58,14 @@ class LoginPage extends StatefulWidget {
                   onPressed: null,
                   child: Text(
                     'Login',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF43474F)),
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Enter your email address and\npassword to access your account.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.black),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF43474F)),
                 ),
 
                 const SizedBox(height: 24),
@@ -166,6 +166,10 @@ class LoginPage extends StatefulWidget {
                             MaterialPageRoute(builder: (context) => ForgotPassword(email: _emailController.text)),
                           );
                         },
+                      style: TextButton.styleFrom(
+                        overlayColor: Colors.black,
+                        splashFactory: InkRipple.splashFactory,
+                      ),
                       child: const Text(
                         'Forgot Password?',
                         style: TextStyle(decoration: TextDecoration.underline),
@@ -206,8 +210,10 @@ class LoginPage extends StatefulWidget {
                     },
 
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: const Color(0xFF43474F),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      overlayColor: Colors.white,
+                      splashFactory: InkRipple.splashFactory,
                     ),
                     child: const Text('LOGIN', style: TextStyle(color: Colors.white)),
                   ),
@@ -231,8 +237,10 @@ class LoginPage extends StatefulWidget {
                           );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: const Color(0xFF43474F),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      overlayColor: Colors.white,
+                      splashFactory: InkRipple.splashFactory,
                     ),
                     child: const Text('CREATE AN ACCOUNT', style: TextStyle(color: Colors.white)),
                   ),
