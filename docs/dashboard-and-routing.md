@@ -28,7 +28,7 @@ This document covers the work done to connect the patient dashboard to Firebase,
 | `app/routes/app_layout.tsx` | New — shared top bar rendered on all protected pages                  |
 | `app/routes/_index.tsx`     | Replaced fake data with Firestore queries; removed sort feature       |
 | `app/routes/member.tsx`     | Removed outer page shell (now owned by layout)                        |
-| `firebase/firestore.rules`  | Added `isStaff()` so social workers/admins can read all user profiles |
+| App repo `firestore.rules`  | Added `isStaff()` so social workers/admins can read all user profiles |
 | `scripts/seed-patients.mjs` | New — populates Firestore with fake patients for development          |
 | `.gitignore`                | Added `scripts/service-account.json`                                  |
 
@@ -218,7 +218,7 @@ The back button is conditionally rendered using `useMatch("/member/:user")`.
 
 ## Firestore Security Rules
 
-**File:** `firebase/firestore.rules`
+**File:** app repo `firestore.rules`
 
 An `isStaff()` helper function was added:
 

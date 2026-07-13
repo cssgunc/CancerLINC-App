@@ -1,0 +1,27 @@
+[debug] [2026-07-09T19:13:35.765Z] ----------------------------------------------------------------------
+[debug] [2026-07-09T19:13:35.769Z] Command:       /usr/local/Cellar/node/25.9.0_2/bin/node /usr/local/bin/firebase functions:list --project cancerlinc-addb4
+[debug] [2026-07-09T19:13:35.770Z] CLI Version:   15.1.0
+[debug] [2026-07-09T19:13:35.770Z] Platform:      darwin
+[debug] [2026-07-09T19:13:35.770Z] Node Version:  v25.9.0
+[debug] [2026-07-09T19:13:35.770Z] Time:          Thu Jul 09 2026 15:13:35 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-07-09T19:13:35.770Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-07-09T19:13:36.060Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-07-09T19:13:36.061Z] > authorizing via signed-in user (nicolas.a.asanov@gmail.com)
+[debug] [2026-07-09T19:13:36.061Z] [iam] checking project cancerlinc-addb4 for permissions ["cloudfunctions.functions.list","firebase.projects.get","run.services.list"]
+[debug] [2026-07-09T19:13:36.064Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:36.064Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:36.069Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cancerlinc-addb4:testIamPermissions [none]
+[debug] [2026-07-09T19:13:36.069Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cancerlinc-addb4:testIamPermissions x-goog-quota-user=projects/cancerlinc-addb4
+[debug] [2026-07-09T19:13:36.070Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cancerlinc-addb4:testIamPermissions {"permissions":["cloudfunctions.functions.list","firebase.projects.get","run.services.list"]}
+[debug] [2026-07-09T19:13:44.969Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cancerlinc-addb4:testIamPermissions 200
+[debug] [2026-07-09T19:13:44.969Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cancerlinc-addb4:testIamPermissions {"permissions":["cloudfunctions.functions.list","firebase.projects.get","run.services.list"]}
+[debug] [2026-07-09T19:13:44.972Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:44.972Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:44.972Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v1/projects/cancerlinc-addb4/locations/-/functions [none]
+[debug] [2026-07-09T19:13:46.158Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v1/projects/cancerlinc-addb4/locations/-/functions 200
+[debug] [2026-07-09T19:13:46.158Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v1/projects/cancerlinc-addb4/locations/-/functions {"functions":[{"name":"projects/cancerlinc-addb4/locations/us-central1/functions/onAuthUserCreated","eventTrigger":{"eventType":"providers/firebase.auth/eventTypes/user.create","resource":"projects/cancerlinc-addb4","service":"firebaseauth.googleapis.com","failurePolicy":{}},"status":"ACTIVE","entryPoint":"onAuthUserCreated","timeout":"60s","availableMemoryMb":256,"serviceAccountEmail":"cancerlinc-addb4@appspot.gserviceaccount.com","updateTime":"2026-07-09T19:01:44.892246331Z","versionId":"1","labels":{"deployment-tool":"cli-firebase","firebase-functions-codebase":"shared","firebase-functions-hash":"061eba0a35b3f9ba94471beac72ace6b8c531b72"},"sourceUploadUrl":"https://storage.googleapis.com/uploads-770225667371.us-central1.cloudfunctions.appspot.com/3fafc33e-e180-4837-9a1f-b2173434be69.zip","environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"cancerlinc-addb4\",\"storageBucket\":\"cancerlinc-addb4.firebasestorage.app\"}","GCLOUD_PROJECT":"cancerlinc-addb4","EVENTARC_CLOUD_EVENT_SOURCE":"projects/cancerlinc-addb4/locations/us-central1/functions/onAuthUserCreated"},"runtime":"nodejs22","maxInstances":3000,"ingressSettings":"ALLOW_ALL","buildId":"6044668e-7f0d-45c0-884e-7fb6592811cd","buildEnvironmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"buildName":"projects/658048959142/locations/us-central1/builds/6044668e-7f0d-45c0-884e-7fb6592811cd","dockerRegistry":"ARTIFACT_REGISTRY","automaticUpdatePolicy":{},"buildServiceAccount":"projects/cancerlinc-addb4/serviceAccounts/658048959142-compute@developer.gserviceaccount.com","satisfiesPzi":true}]}
+[debug] [2026-07-09T19:13:46.160Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:46.161Z] Checked if tokens are valid: true, expires at: 1783626989250
+[debug] [2026-07-09T19:13:46.163Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/cancerlinc-addb4/locations/-/functions filter=environment%3D%22GEN_2%22
+[debug] [2026-07-09T19:13:47.432Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/cancerlinc-addb4/locations/-/functions 200

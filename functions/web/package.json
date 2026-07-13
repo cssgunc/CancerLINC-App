@@ -8,8 +8,8 @@
     },
     "scripts": {
         "build": "tsc",
-        "serve": "npm run build && firebase emulators:start --only functions",
-        "deploy": "firebase deploy --only functions"
+        "serve": "npm run build && firebase emulators:start --only functions:web",
+        "deploy": "firebase deploy --only functions:web"
     },
     "dependencies": {
         "firebase-admin": "^13.8.0",

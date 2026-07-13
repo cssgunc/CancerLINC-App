@@ -8,7 +8,7 @@ This document covers the messaging implementation for [`member.tsx`](/workspace/
 - chat-specific config in [`chat_settings.ts`](/workspace/app/services/chat_settings.ts)
 - upload/message orchestration in [`chat_attachment_service.ts`](/workspace/app/services/chat_attachment_service.ts)
 - composer preview, validation, image rendering, and single-click send in [`member.tsx`](/workspace/app/routes/member.tsx)
-- Firebase rules and config in [`firebase.json`](/workspace/firebase.json), [`firestore.rules`](/workspace/firebase/firestore.rules), and [`storage.rules`](/workspace/firebase/storage.rules)
+- Firebase app initialization in this repo; Firebase rules, indexes, and shared functions are owned by the app repo
 
 ## Chat ID and participant model
 
@@ -71,11 +71,11 @@ Nothing in Firebase Console for Storage/rules is assumed to exist yet. These ste
 1. In the Firebase Console for project `cancerlinc-addb4`, open Storage and create the default bucket if it has not been initialized yet.
 2. Pick the production bucket region deliberately. This is sensitive patient/social-worker traffic, so avoid ad hoc regional choices.
 3. Confirm the bucket name matches `VITE_FIREBASE_STORAGE_BUCKET`. In the current local env this is `cancerlinc-addb4.firebasestorage.app`.
-4. Deploy the rules in [`firestore.rules`](/workspace/firebase/firestore.rules) and [`storage.rules`](/workspace/firebase/storage.rules) with the Firebase CLI:
+4. Deploy the shared Firebase infrastructure from the app repo with the Firebase CLI:
 
 ```bash
 firebase use cancerlinc-addb4
-firebase deploy --only firestore:rules,storage
+firebase deploy --only firestore,storage,functions:shared
 ```
 
 5. Verify Authenticated users can already sign in, because both Firestore and Storage rules require `request.auth != null`.
