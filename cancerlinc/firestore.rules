@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isCurrentUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function chatDoc(chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId));
+    }
+
+    function isChatParticipant(chatId) {
+      let chat = chatDoc(chatId);
+      return signedIn() &&
+        chat.data.participants is list &&
+        request.auth.uid in chat.data.participants;
+    }
+
+    function isOwnChatOrParticipant(chatId) {
+      return isCurrentUser(chatId) || isChatParticipant(chatId);
+    }
+
+    function isFcmTokenOnlyUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['fcmToken']) &&
+        request.resource.data.fcmToken is string;
+    }
+
+    function isOwnEmailVerificationMirrorUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['isVerified', 'updatedAt']) &&
+        request.auth.token.email_verified == true &&
+        request.resource.data.isVerified == true &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    function checklistAllowedKeys() {
+      return [
+        'userId',
+        'title',
+        'subtitle',
+        'items',
+        'archived',
+        'createdAt',
+        'updatedAt',
+      ];
+    }
+
+    function hasValidChecklistShape(uid) {
+      return request.resource.data.keys().hasOnly(checklistAllowedKeys()) &&
+        request.resource.data.keys()
+          .hasAll(['title', 'subtitle', 'items', 'archived']) &&
+        request.resource.data.title is string &&
+        request.resource.data.subtitle is string &&
+        request.resource.data.items is list &&
+        request.resource.data.archived is bool &&
+        (!('userId' in request.resource.data) ||
+          request.resource.data.userId == uid);
+    }
+
+    function hasValidChecklistCreateTimestamps() {
+      return
+        (!('createdAt' in request.resource.data) ||
+          request.resource.data.createdAt == request.time) &&
+        (!('updatedAt' in request.resource.data) ||
+          request.resource.data.updatedAt == request.time);
+    }
+
+    function hasValidChecklistUpdateTimestamps() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['updatedAt']) ||
+        request.resource.data.updatedAt == request.time;
+    }
+
+    function isChecklistOwnerOnlyUpdate(uid) {
+      return isCurrentUser(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title',
+          'subtitle',
+          'items',
+          'archived',
+          'updatedAt',
+        ]) &&
+        hasValidChecklistShape(uid) &&
+        hasValidChecklistUpdateTimestamps();
+    }
+
+    match /users/{uid} {
+      allow read: if isCurrentUser(uid);
+      allow create, delete: if false;
+      allow update: if isCurrentUser(uid) &&
+        (isFcmTokenOnlyUpdate() || isOwnEmailVerificationMirrorUpdate());
+    }
+
+    match /chats/{chatId} {
+      allow read: if isOwnChatOrParticipant(chatId);
+      allow create, update, delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isOwnChatOrParticipant(chatId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /checklists/{uid}/user_checklists/{docId} {
+      allow read: if isCurrentUser(uid);
+      allow create: if isCurrentUser(uid) &&
+        hasValidChecklistShape(uid) &&
+        hasValidChecklistCreateTimestamps();
+      allow update: if isChecklistOwnerOnlyUpdate(uid);
+      allow delete: if false;
+    }
+
+    match /referrals/{patientId}/referrals/{docId} {
+      allow read: if isCurrentUser(patientId);
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/services/auth.dart';
 import 'package:cancerlinc/components/bottom_bar.dart';
 
 class VerifyEmail extends StatefulWidget {
@@ -15,16 +15,43 @@ class VerifyEmail extends StatefulWidget {
 
 class _VerifyEmailState extends State<VerifyEmail> {
   Timer? _timer;
-  final AuthService _authService = AuthService();
+  bool _isCompletingSignup = false;
+
+  Future<bool> _waitForUserDocument(String uid) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    while (DateTime.now().isBefore(deadline)) {
+      final snapshot = await docRef.get();
+      if (snapshot.exists) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+
+    return false;
+  }
+
+  Future<void> _mirrorEmailVerification(User user) async {
+    await user.getIdToken(true);
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'isVerified': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     if (widget.isSignup) {
       _timer = Timer.periodic(const Duration(seconds: 3), (_) async {
+        if (_isCompletingSignup) return;
+
         await FirebaseAuth.instance.currentUser?.reload();
-        if (FirebaseAuth.instance.currentUser?.emailVerified == true) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user?.emailVerified == true) {
+          _isCompletingSignup = true;
           _timer?.cancel();
+          await _waitForUserDocument(user!.uid);
+          await _mirrorEmailVerification(user);
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const BottomBar()),
@@ -103,7 +130,8 @@ class _VerifyEmailState extends State<VerifyEmail> {
                     width: double.infinity,
                     height: 46,
                     child: OutlinedButton(
-                      onPressed: () => _authService.sendEmailVerification(),
+                      onPressed: () =>
+                          FirebaseAuth.instance.currentUser?.sendEmailVerification(),
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       ),

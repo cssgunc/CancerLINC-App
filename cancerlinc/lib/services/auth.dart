@@ -1,9 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   User? get currentUser => _auth.currentUser;
 
@@ -14,8 +13,10 @@ class AuthService {
       email: email,
       password: password,
     );
-
-    await ensureUserDocument(user: credential.user);
+    final user = credential.user;
+    if (user?.emailVerified == true) {
+      await _mirrorEmailVerification(user!);
+    }
 
     return credential;
   }
@@ -43,12 +44,6 @@ class AuthService {
       await credential.user?.reload();
     }
 
-    await ensureUserDocument(
-      user: _auth.currentUser ?? credential.user,
-      firstName: trimmedFirstName,
-      lastName: trimmedLastName,
-    );
-
     return credential;
   }
 
@@ -64,18 +59,11 @@ class AuthService {
     await _auth.currentUser?.sendEmailVerification();
   }
 
-  Future<void> ensureUserDocument({
-    User? user,
-    String? firstName,
-    String? lastName,
-  }) async {
-    final firebaseUser = user ?? _auth.currentUser;
-    if (firebaseUser == null) return;
-
-    final payload = <String, dynamic>{};
-    if (firstName != null) payload['firstName'] = firstName;
-    if (lastName != null) payload['lastName'] = lastName;
-
-    await _functions.httpsCallable('ensureUserDocument').call(payload);
+  Future<void> _mirrorEmailVerification(User user) async {
+    await user.getIdToken(true);
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'isVerified': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

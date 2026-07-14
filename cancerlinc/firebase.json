@@ -38,10 +38,17 @@
       }
     }
   },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "functions": [
     {
-      "source": "functions",
-      "codebase": "default",
+      "source": "functions/shared",
+      "codebase": "shared",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
@@ -54,6 +61,23 @@
       ],
       "predeploy": [
         "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    },
+    {
+      "source": "functions/mobile",
+      "codebase": "mobile",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local",
+        "src",
+        "tsconfig.json"
+      ],
+      "predeploy": [
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ]
     }

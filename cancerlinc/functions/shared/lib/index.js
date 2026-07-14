@@ -33,13 +33,21 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendMessageNotification = exports.sendChatImageMessage = exports.sendChatMessage = exports.createUserChat = exports.ensureUserDocument = void 0;
+exports.sendMessageNotification = exports.deactivateStaleChats = exports.onMessageCreated = exports.sendChatImageMessage = exports.sendChatMessage = exports.createUserChat = exports.onAuthUserCreated = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
+const firebase_functions_1 = require("firebase-functions");
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 const firestore = admin.firestore();
 const serverTimestamp = admin.firestore.FieldValue.serverTimestamp;
+const inactiveAfterMs = 7 * 24 * 60 * 60 * 1000;
+const staleBatchSize = 400;
+const imageOnlySummary = "Sent a photo";
+const imageWithTextSuffix = " (photo attached)";
+const publicCallableOptions = { invoker: "public" };
 const defaultChecklistTemplates = [
     {
         title: "Legal Documents",
@@ -86,6 +94,31 @@ const defaultChecklistTemplates = [
         ],
     },
 ];
+function dataKeys(data) {
+    if (data === null || typeof data !== "object" || Array.isArray(data)) {
+        return [];
+    }
+    return Object.keys(data);
+}
+function hasHeader(request, name) {
+    const value = request.rawRequest.header(name);
+    return typeof value === "string" && value.length > 0;
+}
+function logCallableRequest(callable, request) {
+    firebase_functions_1.logger.info("Callable request received", {
+        callable,
+        hasAuth: request.auth !== undefined,
+        uid: request.auth?.uid ?? null,
+        tokenEmailVerified: request.auth?.token.email_verified ?? null,
+        signInProvider: request.auth?.token.firebase?.sign_in_provider ?? null,
+        hasAppCheck: request.app !== undefined,
+        appId: request.app?.appId ?? null,
+        hasAuthorizationHeader: hasHeader(request, "authorization"),
+        hasFirebaseInstanceIdToken: hasHeader(request, "firebase-instance-id-token"),
+        contentType: request.rawRequest.header("content-type") ?? null,
+        dataKeys: dataKeys(request.data),
+    });
+}
 function requireAuthUid(uid) {
     if (!uid) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in.");
@@ -109,14 +142,11 @@ function splitName(rawName) {
     }
     return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
-function hasMeaningfulValue(value) {
-    if (value === null || value === undefined) {
-        return false;
+function buildMessageSummary(content, messageType) {
+    if (messageType === "image") {
+        return content ? `${content}${imageWithTextSuffix}` : imageOnlySummary;
     }
-    if (typeof value === "string") {
-        return value.trim().length > 0;
-    }
-    return true;
+    return content;
 }
 async function ensureDefaultChecklists(userId) {
     const checklistsRef = firestore
@@ -184,59 +214,41 @@ async function assertCanSendMessage(uid, chatId) {
         throw new https_1.HttpsError("permission-denied", "You are not a participant in this chat.");
     }
 }
-exports.ensureUserDocument = (0, https_1.onCall)(async (request) => {
-    const uid = requireAuthUid(request.auth?.uid);
-    const data = request.data;
-    const authUser = await admin.auth().getUser(uid);
-    const fallbackNameParts = splitName(authUser.displayName ?? authUser.email);
-    const firstName = stringValue(data?.firstName) || fallbackNameParts.firstName;
-    const lastName = stringValue(data?.lastName) || fallbackNameParts.lastName;
-    const docRef = firestore.collection("users").doc(uid);
+exports.onAuthUserCreated = functions.auth.user().onCreate(async (user) => {
+    const fallbackNameParts = splitName(user.displayName ?? user.email);
+    const firstName = fallbackNameParts.firstName;
+    const lastName = fallbackNameParts.lastName;
+    const docRef = firestore.collection("users").doc(user.uid);
     const snapshot = await docRef.get();
-    const defaults = {
-        uid,
-        email: authUser.email ?? "",
-        firstName,
-        lastName,
-        lastNameLower: lastName.toLowerCase(),
-        assignedSocialWorkerId: "",
-        assignedSocialWorkerName: "",
-        hospital: "",
-        phoneNumber: "",
-        profilePhotoUrl: authUser.photoURL ?? "",
-        role: "patient",
-        status: "follow-up",
-        isVerified: authUser.emailVerified,
-        updatedAt: serverTimestamp(),
-    };
     if (!snapshot.exists) {
         await docRef.set({
-            ...defaults,
+            uid: user.uid,
+            email: user.email ?? "",
+            firstName,
+            lastName,
+            lastNameLower: lastName.toLowerCase(),
+            assignedSocialWorkerId: "",
+            assignedSocialWorkerName: "",
+            hospital: "",
+            phoneNumber: "",
+            profilePhotoUrl: user.photoURL ?? "",
+            role: "patient",
+            status: "follow-up",
+            isVerified: user.emailVerified,
             createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             lastContactTimestamp: serverTimestamp(),
         });
     }
-    else {
-        const existingData = snapshot.data() ?? {};
-        const backfill = {
-            isVerified: authUser.emailVerified,
-            updatedAt: serverTimestamp(),
-        };
-        for (const [key, value] of Object.entries(defaults)) {
-            if (!hasMeaningfulValue(existingData[key])) {
-                backfill[key] = value;
-            }
-        }
-        await docRef.set(backfill, { merge: true });
-    }
-    await ensureDefaultChecklists(uid);
-    return { ok: true };
+    await ensureDefaultChecklists(user.uid);
 });
-exports.createUserChat = (0, https_1.onCall)(async (request) => {
+exports.createUserChat = (0, https_1.onCall)(publicCallableOptions, async (request) => {
+    logCallableRequest("createUserChat", request);
     const uid = requireAuthUid(request.auth?.uid);
     const chatRef = firestore.collection("chats").doc(uid);
     const existing = await chatRef.get();
     if (existing.exists) {
+        firebase_functions_1.logger.info("createUserChat returning existing chat", { uid });
         return { chatId: uid };
     }
     const otherUserId = await findChatParticipant(uid);
@@ -246,13 +258,21 @@ exports.createUserChat = (0, https_1.onCall)(async (request) => {
         lastMessage: "",
         lastMessageTimestamp: serverTimestamp(),
     });
+    firebase_functions_1.logger.info("createUserChat created chat", { uid, otherUserId });
     return { chatId: uid };
 });
-exports.sendChatMessage = (0, https_1.onCall)(async (request) => {
+exports.sendChatMessage = (0, https_1.onCall)(publicCallableOptions, async (request) => {
+    logCallableRequest("sendChatMessage", request);
     const uid = requireAuthUid(request.auth?.uid);
     const data = request.data;
     const chatId = stringValue(data?.chatId);
     const content = stringValue(data?.content);
+    firebase_functions_1.logger.info("sendChatMessage parsed request", {
+        uid,
+        chatId,
+        hasContent: content.length > 0,
+        contentLength: content.length,
+    });
     if (!chatId || !content) {
         throw new https_1.HttpsError("invalid-argument", "chatId and content are required.");
     }
@@ -277,9 +297,15 @@ exports.sendChatMessage = (0, https_1.onCall)(async (request) => {
         lastMessageTimestamp: serverTimestamp(),
     });
     await batch.commit();
+    firebase_functions_1.logger.info("sendChatMessage committed", {
+        uid,
+        chatId,
+        messageId: messageRef.id,
+    });
     return { messageId: messageRef.id };
 });
-exports.sendChatImageMessage = (0, https_1.onCall)(async (request) => {
+exports.sendChatImageMessage = (0, https_1.onCall)(publicCallableOptions, async (request) => {
+    logCallableRequest("sendChatImageMessage", request);
     const uid = requireAuthUid(request.auth?.uid);
     const data = request.data;
     const chatId = stringValue(data?.chatId);
@@ -290,6 +316,14 @@ exports.sendChatImageMessage = (0, https_1.onCall)(async (request) => {
     const imageSizeBytes = typeof data?.imageSizeBytes === "number" ?
         data.imageSizeBytes :
         0;
+    firebase_functions_1.logger.info("sendChatImageMessage parsed request", {
+        uid,
+        chatId,
+        hasImageUrl: imageUrl.length > 0,
+        imagePath,
+        imageMimeType,
+        imageSizeBytes,
+    });
     if (!chatId || !imageUrl || !imagePath || !imageFileName) {
         throw new https_1.HttpsError("invalid-argument", "chatId and image metadata are required.");
     }
@@ -323,7 +357,60 @@ exports.sendChatImageMessage = (0, https_1.onCall)(async (request) => {
         lastMessageTimestamp: serverTimestamp(),
     });
     await batch.commit();
+    firebase_functions_1.logger.info("sendChatImageMessage committed", {
+        uid,
+        chatId,
+        messageId: messageRef.id,
+    });
     return { messageId: messageRef.id };
+});
+exports.onMessageCreated = (0, firestore_1.onDocumentCreated)("chats/{chatId}/messages/{messageId}", async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) {
+        return;
+    }
+    const chatId = event.params.chatId;
+    const message = snapshot.data();
+    const senderId = message.senderId ?? "";
+    const content = message.content ?? "";
+    const patientRef = firestore.collection("users").doc(chatId);
+    await firestore.runTransaction(async (transaction) => {
+        const patientSnapshot = await transaction.get(patientRef);
+        if (!patientSnapshot.exists) {
+            return;
+        }
+        const currentStatus = patientSnapshot.get("status");
+        const nextStatus = currentStatus === "urgent" ? "urgent" : "active";
+        transaction.set(patientRef, {
+            status: nextStatus,
+            awaitingReply: senderId === chatId,
+            lastMessageText: buildMessageSummary(content, message.messageType),
+            lastContactTimestamp: serverTimestamp(),
+        }, { merge: true });
+    });
+});
+exports.deactivateStaleChats = (0, scheduler_1.onSchedule)("every 24 hours", async () => {
+    const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - inactiveAfterMs);
+    const staleQuery = firestore
+        .collection("users")
+        .where("role", "==", "patient")
+        .where("status", "==", "active")
+        .where("lastContactTimestamp", "<=", cutoff);
+    const snapshot = await staleQuery.get();
+    if (snapshot.empty) {
+        firebase_functions_1.logger.info("deactivateStaleChats: no stale patients");
+        return;
+    }
+    let updated = 0;
+    for (let i = 0; i < snapshot.docs.length; i += staleBatchSize) {
+        const batch = firestore.batch();
+        for (const doc of snapshot.docs.slice(i, i + staleBatchSize)) {
+            batch.update(doc.ref, { status: "inactive" });
+            updated += 1;
+        }
+        await batch.commit();
+    }
+    firebase_functions_1.logger.info(`deactivateStaleChats: set ${updated} patient(s) to inactive`);
 });
 exports.sendMessageNotification = (0, firestore_1.onDocumentCreated)(
 // Watches for any new document created inside chat message subcollection

@@ -1,0 +1,22 @@
+{
+  "name": "mobile-functions",
+  "description": "Mobile-only Cloud Functions for CancerLINC",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions:mobile",
+    "deploy": "firebase deploy --only functions:mobile"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.17.2",
+    "typescript": "^6.0.3"
+  },
+  "private": true
+}

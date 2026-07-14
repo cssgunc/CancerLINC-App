@@ -42,6 +42,7 @@ class _ChatPageState extends State<ChatPage> {
 
   // initializes notification service and requests permission to show notifications
   Future<void> _requestNotificationPermission() async {
+    return;
     await NotificationService().requestPermissionAndInit(context);
   }
 
