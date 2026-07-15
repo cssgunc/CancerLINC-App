@@ -51,14 +51,15 @@ class _VerifyEmailState extends State<VerifyEmail> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
+              InkWell(
                 onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(6),
                 child: const Padding(
-                  padding: EdgeInsets.only(top: 30.0),
+                  padding: EdgeInsets.only(top: 30.0, bottom: 8.0),
                   child: Row(children: [
                     Padding(padding: EdgeInsets.only(left: 8.0)),
-                    Icon(Icons.arrow_back_ios),
-                    Text("Back"),
+                    Icon(Icons.arrow_back_ios, color: Color(0xFF43474F)),
+                    Text("Back", style: TextStyle(color: Color(0xFF43474F))),
                   ]),
                 ),
               ),
@@ -106,8 +107,10 @@ class _VerifyEmailState extends State<VerifyEmail> {
                       onPressed: () => _authService.sendEmailVerification(),
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        overlayColor: Colors.black,
+                        splashFactory: InkRipple.splashFactory,
                       ),
-                      child: const Text('RESEND EMAIL', style: TextStyle(color: Colors.black)),
+                      child: const Text('RESEND EMAIL', style: TextStyle(color: Color(0xFF43474F))),
                     ),
                   ),
                 ),
@@ -118,8 +121,10 @@ class _VerifyEmailState extends State<VerifyEmail> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF43474F),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    overlayColor: Colors.white,
+                    splashFactory: InkRipple.splashFactory,
                   ),
                   child: const Text('RETURN TO LOGIN', style: TextStyle(color: Colors.white)),
                 ),
