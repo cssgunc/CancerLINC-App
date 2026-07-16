@@ -1,0 +1,49 @@
+{
+    "dockerComposeFile": "docker-compose.yml",
+    "workspaceFolder": "/workspace",
+    "service": "frontend",
+    "remoteUser": "vscode",
+    "forwardPorts": [5173],
+    "postCreateCommand": "npm install && sudo npm install -g @anthropic-ai/claude-code",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "ecmel.vscode-html-css",
+                "steoates.autoimport",
+                "christian-kohler.path-intellisense",
+                "ms-vscode.vscode-typescript-next",
+                "bradlc.vscode-tailwindcss",
+                "vscode-icons-team.vscode-icons",
+                "tamasfe.even-better-toml",
+                "gruntfuggly.todo-tree",
+                "formulahendry.auto-rename-tag",
+                "formulahendry.auto-close-tag",
+                "wix.vscode-import-cost",
+                "usernamehw.errorlens",
+                "eamodio.gitlens",
+                "aaron-bond.better-comments"
+            ],
+            "settings": {
+                "editor.formatOnSave": true,
+                "editor.formatOnSaveMode": "file",
+                "editor.defaultFormatter": "esbenp.prettier-vscode",
+                "editor.codeActionsOnSave": {
+                    "source.fixAll": true,
+                    "source.fixAll.eslint": true
+                },
+                "[typescriptreact]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode"
+                }
+            }
+        },
+        "mounts": [
+            "source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume"
+        ],
+        "containerEnv": {
+            "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+        },
+        "containerUser": "vscode"
+    }
+}

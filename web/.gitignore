@@ -1,0 +1,12 @@
+.DS_Store
+/node_modules/
+
+# React Router
+/.react-router/
+/build/
+
+#environment files
+.env
+
+# Firebase service account key — never commit this
+scripts/service-account.json
