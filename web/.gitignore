@@ -10,3 +10,7 @@
 
 # Firebase service account key — never commit this
 scripts/service-account.json
+
+# Firebase config/functions are owned by ../backend
+firebase-debug.log
+firebase-debug.*.log

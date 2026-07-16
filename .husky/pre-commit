@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^web/'; then
+    cd web || exit 1
+    npm run lint
+    npm run format
+    git add .
+fi

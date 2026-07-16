@@ -1,59 +1,60 @@
-<p align="center">
-  <img src="./public/cssglogo.svg" alt="CSSG Logo" width="200">
-</p>
+# CancerLINC Web
 
-# CSSG Starter Template
+React Router web app for CancerLINC, covering both the patient-facing site
+and the staff/admin UI.
 
-This is a starter template for CSSG projects using React, TypeScript, and Tailwind CSS. It is configured to be used with VS Code Dev Containers for a consistent development environment.
+## Setup
 
-## Prerequisites
+Install dependencies:
 
-Before you begin, ensure you have the following installed:
+```sh
+npm install
+```
 
-- [Git](https://git-scm.com/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop)
-- [Visual Studio Code](https://code.visualstudio.com/)
-- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) for VS Code.
+Copy the env template and fill in the Firebase project values:
 
-## Getting Started
+```sh
+cp .env.template .env
+```
 
-1.  **Fork the repository:**
+`.env` needs:
 
-    Fork this repository. Then, clone your forked repository:
+- `VITE_FIREBASE_*`: client Firebase config for the target project.
+- `SUPERUSER_EMAIL` / `VITE_SUPERUSER_EMAIL`: the staff-provisioning
+  superuser email. These must match; the `VITE_` one only gates UI (showing
+  the Staff nav link and `/staff` page) while enforcement happens server-side
+  in the backend (see [../backend/README.md](../backend/README.md)).
 
-    ```bash
-    git clone <your-forked-repository-url>
-    cd <repository-name>
-    ```
+Ask a team lead for these values
 
-2.  **Open in VS Code/Cursor:**
+## Run
 
-    Open the cloned repository folder in VS Code or Cursor.
+Start the dev server:
 
-3.  **Open in Dev Container:**
+```sh
+npm run dev
+```
 
-    Once the project is open in VS Code, you will be prompted to "Reopen in Container". Click on it.
+The app runs at `http://localhost:5173`.
 
-    If you don't see the prompt, you can open the command palette and run "Dev Containers: Reopen in Container".
-    - **Windows/Linux:** `Ctrl+Shift+P`
-    - **Mac:** `Cmd+Shift+P`
+## Other scripts
 
-    This will build the Docker container for the development environment. The first build might take a few minutes. Subsequent loads will be much faster.
+```sh
+npm run build      # production build
+npm run start      # serve the production build
+npm run typecheck  # react-router typegen + tsc
+npm run lint        # eslint
+npm run lint:fix    # eslint --fix
+npm run format      # prettier --write
+```
 
-## Available Commands
+## Docs
 
-Inside the dev container, you can use the following commands:
+Feature-specific implementation notes live in [docs/](docs/).
 
-| Command             | Description                                                |
-| :------------------ | :--------------------------------------------------------- |
-| `npm run dev`       | Starts the development server with Hot Module Replacement. |
-| `npm run build`     | Builds the application for production.                     |
-| `npm run start`     | Serves the production build.                               |
-| `npm run lint`      | Lints the codebase using ESLint.                           |
-| `npm run lint:fix`  | Lints and automatically fixes issues.                      |
-| `npm run format`    | Formats the code using Prettier.                           |
-| `npm run typecheck` | Runs the TypeScript compiler to check for type errors.     |
+## Git hooks
 
-## Feature Notes
-
-- Image messaging rollout and Firebase setup details: [`docs/chat-image-messaging.md`](/workspace/docs/chat-image-messaging.md)
+The pre-commit hook (lint + format against `web/`) lives in `../.husky/` at
+the repo root. `npm install` (above) wires it up automatically via the
+`prepare` script, which runs `husky` from the repo root since `.husky/` lives
+one level up from `web/`.
