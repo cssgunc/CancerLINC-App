@@ -138,16 +138,17 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
+              InkWell(
                 onTap: () {
                   Navigator.pop(context);
                 },
+                borderRadius: BorderRadius.circular(6),
                 child: const Padding(
-                  padding: EdgeInsets.only(top: 30.0),
+                  padding: EdgeInsets.only(top: 30.0, bottom: 8.0),
                   child: Row(children: [
-                    Padding(padding: EdgeInsets.only(left: 8.0)),
-                    Icon(Icons.arrow_back_ios),
-                    Text("Back to login")]),
+                    const Padding(padding: EdgeInsets.only(left: 8.0)),
+                    Icon(Icons.arrow_back_ios, color: Color(0xFF43474F)),
+                    Text("Back to login", style: TextStyle(color: Color(0xFF43474F)))]),
                 ),
               ),
 
@@ -180,15 +181,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
@@ -205,15 +206,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
@@ -230,15 +231,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                       ),
@@ -255,15 +256,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         suffixIcon: IconButton(
@@ -284,15 +285,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black),
+                          borderSide: const BorderSide(color: Color(0xFF43474F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.black, width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         suffixIcon: IconButton(
@@ -347,7 +348,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                                 const TextSpan(text: 'I have read and consent to the '),
                                 TextSpan(
                                   text: 'Terms and Conditions',
-                                  style: const TextStyle(decoration: TextDecoration.underline, color: Colors.black),
+                                  style: const TextStyle(decoration: TextDecoration.underline, color: Color(0xFF43474F)),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
                                       // TODO: open terms link
@@ -368,8 +369,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       child: ElevatedButton(
                         onPressed: _onSignUp,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
+                          backgroundColor: const Color(0xFF43474F),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          overlayColor: Colors.white,
+                          splashFactory: InkRipple.splashFactory,
                         ),
                         child: const Text('SIGN UP', style: TextStyle(color: Colors.white)),
                       ),

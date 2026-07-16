@@ -28,16 +28,17 @@ class _ForgotPasswordState extends State<ForgotPassword> {
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             children: [
-            GestureDetector(
+            InkWell(
               onTap: () {
                 Navigator.pop(context);
               },
+              borderRadius: BorderRadius.circular(6),
               child: const Padding(
-                padding: EdgeInsets.only(top: 30.0),
+                padding: EdgeInsets.only(top: 30.0, bottom: 8.0),
                 child: Row(children: [
-                  Padding(padding: EdgeInsets.only(left: 8.0)), 
-                  Icon(Icons.arrow_back_ios), 
-                  Text("Back to login")]),
+                  const Padding(padding: EdgeInsets.only(left: 8.0)),
+                  Icon(Icons.arrow_back_ios, color: Color(0xFF43474F)),
+                  Text("Back to login", style: TextStyle(color: Color(0xFF43474F)))]),
               ),
             ),
             const Spacer(flex: 1),
@@ -86,8 +87,10 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: const Color(0xFF43474F),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      overlayColor: Colors.white,
+                      splashFactory: InkRipple.splashFactory,
                     ),
                     child: const Text('CONTINUE', style: TextStyle(color: Colors.white)),
                   ),
