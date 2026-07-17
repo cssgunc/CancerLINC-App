@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { CalendarDays, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
     Link,
@@ -167,6 +167,13 @@ export default function AppLayout() {
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex shrink-0">
                         <span>Welcome, {user?.displayName}</span>
+                        <Link
+                            to="/calendar"
+                            className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            <CalendarDays className="h-4 w-4" />
+                            Calendar
+                        </Link>
                         {isSuperuser(user?.email) ? (
                             <Link
                                 to="/staff"
