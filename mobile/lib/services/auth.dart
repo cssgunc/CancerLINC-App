@@ -26,6 +26,7 @@ class AuthService {
     String password, {
     String? firstName,
     String? lastName,
+    String? phoneNumber,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -42,6 +43,17 @@ class AuthService {
     if (fullName.isNotEmpty) {
       await credential.user?.updateDisplayName(fullName);
       await credential.user?.reload();
+    }
+
+    final trimmedPhoneNumber = phoneNumber?.trim() ?? '';
+    if (trimmedPhoneNumber.isNotEmpty && credential.user != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(credential.user!.uid)
+          .set({
+        'phoneNumber': trimmedPhoneNumber,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
 
     return credential;
