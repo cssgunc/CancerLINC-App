@@ -1,0 +1,16 @@
+.DS_Store
+/node_modules/
+
+# React Router
+/.react-router/
+/build/
+
+#environment files
+.env
+
+# Firebase service account key — never commit this
+scripts/service-account.json
+
+# Firebase config/functions are owned by ../backend
+firebase-debug.log
+firebase-debug.*.log

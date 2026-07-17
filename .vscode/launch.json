@@ -5,24 +5,45 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "cancerlinc",
-            "cwd": "cancerlinc",
+            "name": "App: dev mode",
+            "cwd": "mobile",
             "request": "launch",
             "type": "dart"
         },
         {
-            "name": "cancerlinc (profile mode)",
-            "cwd": "cancerlinc",
+            "name": "App: profile mode",
+            "cwd": "mobile",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "cancerlinc (release mode)",
-            "cwd": "cancerlinc",
+            "name": "App: release mode",
+            "cwd": "mobile",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
+        },
+        {
+            "name": "Web: dev server",
+            "cwd": "${workspaceFolder}/web",
+            "request": "launch",
+            "type": "node-terminal",
+            "command": "npm run dev"
+        },
+        {
+            "name": "Firebase: deploy all",
+            "cwd": "${workspaceFolder}/backend",
+            "request": "launch",
+            "type": "node-terminal",
+            "command": "firebase deploy"
+        },
+        {
+            "name": "Firebase: deploy functions",
+            "cwd": "${workspaceFolder}/backend",
+            "request": "launch",
+            "type": "node-terminal",
+            "command": "firebase deploy --only functions:backend"
         }
     ]
 }
