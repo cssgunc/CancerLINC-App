@@ -2,71 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
-    collection,
-    doc,
-    getCountFromServer,
-    getDocs,
-    type DocumentSnapshot,
-    type QueryConstraint,
-    limit,
-    orderBy,
-    query,
-    startAfter,
-    Timestamp,
-    updateDoc,
-    where,
-} from "firebase/firestore";
-import { db } from "~/services/firebase_app";
-
-// --- Types ---
-type UnverifiedPatient = {
-    id: string;
-    name: string;
-    email: string;
-    isBanned: boolean;
-    isVerified: boolean;
-};
-
-type PatientCategory = "verified" | "unverified" | "rejected";
-
-function getCategory(p: UnverifiedPatient): PatientCategory {
-    if (p.isBanned) return "rejected";
-    if (p.isVerified) return "verified";
-    return "unverified";
-}
-
-// --- Search helpers (prefix-range search for Firestore) ---
-// Mirrors the same helpers in _index.tsx; reuses existing indexes (role, lastNameLower) and (role, firstName)
-function prefixRange(s: string): [string, string] {
-    const lower = s.toLowerCase();
-    const upper =
-        lower.slice(0, -1) +
-        String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
-    return [lower, upper];
-}
-
-function prefixRangeExactCase(s: string): [string, string] {
-    const upper =
-        s.slice(0, -1) + String.fromCharCode(s.charCodeAt(s.length - 1) + 1);
-    return [s, upper];
-}
-
-function firstNameQueryVariants(value: string): string[] {
-    const titleCase = value.charAt(0).toUpperCase() + value.slice(1);
-    return [...new Set([value, titleCase])].filter(Boolean);
-}
-
-// --- View state ---
-// The status filters + page size are NOT persisted globally. They are only
-// "remembered" for the single round-trip: verification table → View Profile →
-// Back. That snapshot rides ephemeral router navigation state (see goToProfile
-// and the Back button in app_layout) and vanishes as soon as you navigate
-// anywhere else, so a fresh visit always starts from defaults.
-type StatusChecks = {
-    verified: boolean;
-    unverified: boolean;
-    rejected: boolean;
-};
+    acceptPatient,
+    fetchPatientsPage,
+    fetchVerificationCounts,
+    getPatientCategory,
+    rejectPatient,
+    searchPatients,
+    type PageCursor,
+    type StatusChecks,
+    type UnverifiedPatient,
+} from "~/services/unverified_patients_service";
 
 const DEFAULT_STATUS_CHECKS: StatusChecks = {
     verified: false,
@@ -74,13 +19,18 @@ const DEFAULT_STATUS_CHECKS: StatusChecks = {
     rejected: false,
 };
 
+// The status filters + page size are NOT persisted globally. They are only
+// "remembered" for the single round-trip: verification table → View Profile →
+// Back. That snapshot rides ephemeral router navigation state (see goToProfile
+// and the Back button in app_layout) and vanishes as soon as you navigate
+// anywhere else, so a fresh visit always starts from defaults.
 type ViewSnapshot = {
     statusChecks?: StatusChecks;
     pageSize?: number;
 };
 
 // --- Component ---
-export default function UnverifiedPage() {
+export default function UnverifiedTablePage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -107,7 +57,7 @@ export default function UnverifiedPage() {
     const [actionError, setActionError] = useState<string | null>(null);
 
     // Pagination cursors: stack of "last doc of each page" so we can go back
-    const cursorStack = useRef<DocumentSnapshot[]>([]);
+    const cursorStack = useRef<PageCursor[]>([]);
     const [page, setPage] = useState(0); // 0-indexed current page
     const [hasNextPage, setHasNextPage] = useState(false);
 
@@ -131,43 +81,13 @@ export default function UnverifiedPage() {
     }, [debouncedQuery, statusChecks]);
 
     // Fetch counts once on mount.
-    // Note: "unverified" (non-verified, non-banned) is derived as
-    // pending - rejected rather than queried directly, because legacy patient
-    // docs often have no `isBanned` field at all — Firestore equality filters
-    // never match documents missing the filtered field, so
-    // where("isBanned", "==", false) silently excludes them.
     useEffect(() => {
-        const usersRef = collection(db, "users");
-        Promise.all([
-            getCountFromServer(
-                query(
-                    usersRef,
-                    where("role", "==", "patient"),
-                    where("isVerified", "==", false)
-                )
-            ),
-            getCountFromServer(
-                query(
-                    usersRef,
-                    where("role", "==", "patient"),
-                    where("isVerified", "==", true)
-                )
-            ),
-            getCountFromServer(
-                query(
-                    usersRef,
-                    where("role", "==", "patient"),
-                    where("isBanned", "==", true)
-                )
-            ),
-        ])
-            .then(([pending, verified, rejected]) => {
-                const pendingN = pending.data().count;
-                const rejectedN = rejected.data().count;
-                setPendingCount(pendingN);
-                setVerifiedCount(verified.data().count);
-                setRejectedCount(rejectedN);
-                setUnverifiedCount(pendingN - rejectedN);
+        fetchVerificationCounts()
+            .then((counts) => {
+                setPendingCount(counts.pending);
+                setVerifiedCount(counts.verified);
+                setRejectedCount(counts.rejected);
+                setUnverifiedCount(counts.unverified);
             })
             .catch(() => {
                 // Non-critical — count badges stay blank
@@ -180,186 +100,37 @@ export default function UnverifiedPage() {
         setLoading(true);
         setError(null);
 
-        async function fetchPatients() {
+        async function loadPatients() {
             try {
-                const usersRef = collection(db, "users");
-
                 if (debouncedQuery.length > 0) {
-                    // --- Server-side search mode ---
-                    // Uses existing indexes: (role, lastNameLower) and (role, firstName)
-                    // No isVerified/isBanned filter — this page intentionally shows all categories
-                    const [lo, hi] = prefixRange(debouncedQuery);
-                    const patientQueries = [
-                        getDocs(
-                            query(
-                                usersRef,
-                                where("role", "==", "patient"),
-                                where("lastNameLower", ">=", lo),
-                                where("lastNameLower", "<", hi),
-                                orderBy("lastNameLower"),
-                                limit(pageSize)
-                            )
-                        ),
-                    ];
-
-                    for (const variant of firstNameQueryVariants(
-                        debouncedQuery
-                    )) {
-                        const [firstLo, firstHi] =
-                            prefixRangeExactCase(variant);
-                        patientQueries.push(
-                            getDocs(
-                                query(
-                                    usersRef,
-                                    where("role", "==", "patient"),
-                                    where("firstName", ">=", firstLo),
-                                    where("firstName", "<", firstHi),
-                                    orderBy("firstName"),
-                                    limit(pageSize)
-                                )
-                            )
-                        );
-                    }
-
-                    const patientSnaps = await Promise.all(patientQueries);
+                    const results = await searchPatients(
+                        debouncedQuery,
+                        pageSize
+                    );
                     if (cancelled) return;
-
-                    // Merge and deduplicate by id
-                    const seen = new Set<string>();
-                    const merged = patientSnaps
-                        .flatMap((snap) => snap.docs)
-                        .filter((d) => {
-                            if (seen.has(d.id)) return false;
-                            seen.add(d.id);
-                            return true;
-                        })
-                        .sort((a, b) => {
-                            const aLast = String(a.data().lastName ?? "");
-                            const bLast = String(b.data().lastName ?? "");
-                            return aLast.localeCompare(bLast);
-                        });
-
-                    const results: UnverifiedPatient[] = merged.map((d) => {
-                        const data = d.data();
-                        const email = (data.email as string) || "";
-                        return {
-                            id: d.id,
-                            name:
-                                `${(data.firstName as string) ?? ""} ${(data.lastName as string) ?? ""}`.trim() ||
-                                email ||
-                                d.id,
-                            email,
-                            isBanned: data.isBanned === true,
-                            isVerified: data.isVerified === true,
-                        };
-                    });
-
                     setPatients(results);
                     setHasNextPage(false); // no cursor pagination while searching
                 } else {
-                    // --- Cursor-pagination mode ---
-                    // The Firestore query itself only narrows by role, ordered
-                    // by lastName (existing (role, lastName) index) — it does
-                    // NOT filter by verification status, because a composite
-                    // index covering every status-checkbox combination isn't
-                    // available. Instead we scan raw pages in lastName order
-                    // and keep fetching additional batches, filtering each one
-                    // by the active status checkboxes, until we've accumulated
-                    // a full page of *matching* results (or run out of data).
-                    // This avoids the old bug where a single raw page was
-                    // fetched and then filtered, which could yield far fewer
-                    // than `pageSize` visible rows even though more matches
-                    // existed on later raw pages.
-                    if (
-                        !statusChecks.verified &&
-                        !statusChecks.unverified &&
-                        !statusChecks.rejected
-                    ) {
-                        setPatients([]);
-                        setHasNextPage(false);
-                        return;
-                    }
-
-                    const BATCH_SIZE = Math.max(pageSize, 50);
-                    const MAX_BATCHES = 40; // safety cap (~2000+ docs scanned)
-                    const target = pageSize + 1; // +1 lets us detect a next page
-
-                    let lastRawDoc: DocumentSnapshot | undefined =
+                    const afterDoc =
                         page > 0 ? cursorStack.current[page - 1] : undefined;
-                    const matches: {
-                        doc: DocumentSnapshot;
-                        patient: UnverifiedPatient;
-                    }[] = [];
-                    let exhausted = false;
-
-                    for (
-                        let batch = 0;
-                        batch < MAX_BATCHES && matches.length < target;
-                        batch++
-                    ) {
-                        const constraints: QueryConstraint[] = [
-                            where("role", "==", "patient"),
-                            orderBy("lastName"),
-                        ];
-                        if (lastRawDoc) {
-                            constraints.push(startAfter(lastRawDoc));
-                        }
-                        constraints.push(limit(BATCH_SIZE));
-
-                        const snap = await getDocs(
-                            query(usersRef, ...constraints)
-                        );
-                        if (cancelled) return;
-
-                        if (snap.docs.length === 0) {
-                            exhausted = true;
-                            break;
-                        }
-
-                        for (const d of snap.docs) {
-                            lastRawDoc = d;
-                            const data = d.data();
-                            const email = (data.email as string) || "";
-                            const patient: UnverifiedPatient = {
-                                id: d.id,
-                                name:
-                                    `${(data.firstName as string) ?? ""} ${(data.lastName as string) ?? ""}`.trim() ||
-                                    email ||
-                                    d.id,
-                                email,
-                                isBanned: data.isBanned === true,
-                                isVerified: data.isVerified === true,
-                            };
-                            if (statusChecks[getCategory(patient)]) {
-                                matches.push({ doc: d, patient });
-                                if (matches.length === target) break;
-                            }
-                        }
-
-                        if (snap.docs.length < BATCH_SIZE) {
-                            exhausted = true;
-                            break;
-                        }
-                    }
-
-                    const hasNext = matches.length > pageSize;
-                    const visible = hasNext
-                        ? matches.slice(0, pageSize)
-                        : matches;
+                    const result = await fetchPatientsPage(
+                        { pageSize, statusChecks, afterDoc },
+                        () => cancelled
+                    );
+                    if (cancelled) return;
 
                     // Cursor for the next page starts after the last raw doc
                     // we actually consumed (matching or not), so no docs are
                     // skipped or duplicated across pages.
                     if (
-                        lastRawDoc &&
-                        (visible.length > 0 || exhausted) &&
+                        result.lastConsumedDoc &&
                         cursorStack.current.length <= page
                     ) {
-                        cursorStack.current[page] = lastRawDoc;
+                        cursorStack.current[page] = result.lastConsumedDoc;
                     }
 
-                    setPatients(visible.map((m) => m.patient));
-                    setHasNextPage(hasNext);
+                    setPatients(result.patients);
+                    setHasNextPage(result.hasNextPage);
                 }
             } catch (e: unknown) {
                 if (!cancelled) {
@@ -371,7 +142,7 @@ export default function UnverifiedPage() {
             }
         }
 
-        void fetchPatients();
+        void loadPatients();
         return () => {
             cancelled = true;
         };
@@ -382,7 +153,7 @@ export default function UnverifiedPage() {
     // is already filtered by status while accumulating each page.
     const visiblePatients = useMemo(() => {
         if (!debouncedQuery) return patients;
-        return patients.filter((p) => statusChecks[getCategory(p)]);
+        return patients.filter((p) => statusChecks[getPatientCategory(p)]);
     }, [patients, statusChecks, debouncedQuery]);
 
     // Pagination denominator tracks the sum of counts for the active status
@@ -439,11 +210,7 @@ export default function UnverifiedPage() {
         );
 
         try {
-            await updateDoc(doc(db, "users", id), {
-                isVerified: true,
-                isBanned: false,
-                updatedAt: Timestamp.now(),
-            });
+            await acceptPatient(id);
         } catch {
             // Revert on failure
             setPatients(previousPatients);
@@ -469,11 +236,7 @@ export default function UnverifiedPage() {
         );
 
         try {
-            await updateDoc(doc(db, "users", id), {
-                isBanned: true,
-                isVerified: false,
-                updatedAt: Timestamp.now(),
-            });
+            await rejectPatient(id);
         } catch {
             // Revert on failure
             setPatients(previousPatients);
@@ -601,7 +364,7 @@ export default function UnverifiedPage() {
                         <table className="table-fixed min-w-full divide-y divide-gray-200">
                             <thead className="select-none bg-gray-50 text-left text-sm text-gray-600">
                                 <tr>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         <div className="flex items-center gap-1.5">
                                             Patient Name
                                             <button
@@ -620,10 +383,16 @@ export default function UnverifiedPage() {
                                             </button>
                                         </div>
                                     </th>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
+                                        Phone Number
+                                    </th>
+                                    <th className="w-1/5 px-6 py-4 font-medium">
+                                        Email
+                                    </th>
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         Verification Status
                                     </th>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         <div className="flex items-center justify-between gap-2">
                                             <span>Actions</span>
                                             <button
@@ -654,7 +423,7 @@ export default function UnverifiedPage() {
                                 {loading ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-12 text-center text-gray-400"
                                         >
                                             <Loader2 className="mx-auto h-6 w-6 animate-spin" />
@@ -663,7 +432,7 @@ export default function UnverifiedPage() {
                                 ) : error ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-10 text-center text-sm text-red-600"
                                         >
                                             {error}
@@ -672,7 +441,7 @@ export default function UnverifiedPage() {
                                 ) : visiblePatients.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-10 text-center text-sm text-gray-400"
                                         >
                                             No patients match the current
@@ -681,7 +450,7 @@ export default function UnverifiedPage() {
                                     </tr>
                                 ) : (
                                     visiblePatients.map((p) => {
-                                        const category = getCategory(p);
+                                        const category = getPatientCategory(p);
                                         return (
                                             <tr
                                                 key={p.id}
@@ -696,6 +465,12 @@ export default function UnverifiedPage() {
                                                     >
                                                         {p.name}
                                                     </button>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {p.phoneNumber || "—"}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {p.email || "—"}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {category === "verified" ? (
@@ -757,18 +532,6 @@ export default function UnverifiedPage() {
                                                                 </button>
                                                             </>
                                                         ) : null}
-                                                        {/* Muted "View Profile" button — greyer than Accept/Reject */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                goToProfile(
-                                                                    p.id
-                                                                )
-                                                            }
-                                                            className="rounded-xl border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-                                                        >
-                                                            View Profile
-                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
