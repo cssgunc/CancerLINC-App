@@ -8,6 +8,8 @@ import {
     Pencil,
     Trash2,
     Calendar,
+    MapPin,
+    Video,
 } from "lucide-react";
 import {
     collection,
@@ -32,6 +34,8 @@ interface CalendarEvent {
     endTime: string;
     description: string;
     tags: string[];
+    location?: string;
+    isVirtual?: boolean;
 }
 
 const TAGS = [
@@ -99,6 +103,8 @@ const EMPTY_FORM = {
     endTime: "",
     description: "",
     tags: [] as string[],
+    location: "",
+    isVirtual: false,
 };
 
 // --- Page ---
@@ -190,6 +196,8 @@ export default function CalendarPage() {
             endTime: ev.endTime,
             description: ev.description,
             tags: [...ev.tags],
+            location: ev.location ?? "",
+            isVirtual: ev.isVirtual ?? false,
         });
         setEditTarget(ev);
         setModalMode("edit");
@@ -211,6 +219,8 @@ export default function CalendarPage() {
                 endTime: form.endTime,
                 description: form.description.trim(),
                 tags: form.tags,
+                location: form.location.trim(),
+                isVirtual: form.isVirtual,
                 updatedAt: Timestamp.now(),
             };
             if (modalMode === "add") {
@@ -461,6 +471,21 @@ export default function CalendarPage() {
                                                                 )}
                                                             </div>
                                                         )}
+                                                        <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                                                            {ev.isVirtual ? (
+                                                                <Video className="h-3 w-3 shrink-0" />
+                                                            ) : (
+                                                                <MapPin className="h-3 w-3 shrink-0" />
+                                                            )}
+                                                            <span className="truncate">
+                                                                {ev.isVirtual
+                                                                    ? "Virtual"
+                                                                    : "In-person"}
+                                                                {ev.location
+                                                                    ? ` · ${ev.location}`
+                                                                    : ""}
+                                                            </span>
+                                                        </div>
                                                         {ev.description && (
                                                             <div className="mt-1 line-clamp-2 text-xs text-gray-600">
                                                                 {ev.description}
@@ -558,7 +583,7 @@ export default function CalendarPage() {
                                         }))
                                     }
                                     placeholder="Event title"
-                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                                 />
                             </div>
 
@@ -575,7 +600,7 @@ export default function CalendarPage() {
                                             date: e.target.value,
                                         }))
                                     }
-                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                                 />
                             </div>
 
@@ -593,7 +618,7 @@ export default function CalendarPage() {
                                                 startTime: e.target.value,
                                             }))
                                         }
-                                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                                     />
                                 </div>
                                 <div className="flex-1">
@@ -609,7 +634,7 @@ export default function CalendarPage() {
                                                 endTime: e.target.value,
                                             }))
                                         }
-                                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                                     />
                                 </div>
                             </div>
@@ -628,7 +653,57 @@ export default function CalendarPage() {
                                     }
                                     rows={3}
                                     placeholder="Optional details..."
-                                    className="mt-1 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                                    className="mt-1 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-xs font-medium text-gray-700">
+                                    Format
+                                </label>
+                                <div className="flex gap-2">
+                                    {[false, true].map((virtual) => (
+                                        <button
+                                            key={String(virtual)}
+                                            type="button"
+                                            onClick={() =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    isVirtual: virtual,
+                                                }))
+                                            }
+                                            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
+                                                ${
+                                                    form.isVirtual === virtual
+                                                        ? "bg-gray-900 text-white"
+                                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                                }`}
+                                        >
+                                            {virtual ? (
+                                                <Video className="h-3.5 w-3.5" />
+                                            ) : (
+                                                <MapPin className="h-3.5 w-3.5" />
+                                            )}
+                                            {virtual ? "Virtual" : "In-person"}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-medium text-gray-700">
+                                    Location
+                                </label>
+                                <input
+                                    value={form.location}
+                                    onChange={(e) =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            location: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="Address or meeting link"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-600"
                                 />
                             </div>
 
