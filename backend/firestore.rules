@@ -10,6 +10,17 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function requesterData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Staff = social workers and admins. Note: relies on the requester's own
+    // user doc existing; guarded by signedIn() so it short-circuits for
+    // anonymous requests before the get() runs.
+    function isStaff() {
+      return signedIn() && requesterData().role in ['social_worker', 'admin'];
+    }
+
     function chatDoc(chatId) {
       return get(/databases/$(database)/documents/chats/$(chatId));
     }
@@ -29,6 +40,20 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly(['fcmToken']) &&
         request.resource.data.fcmToken is string;
+    }
+
+    // Fields staff may change on a patient's user doc (assignment, status,
+    // verification). Scoped so staff can't rewrite arbitrary account fields.
+    function isStaffUserUpdate() {
+      return isStaff() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'assignedSocialWorkerId',
+          'assignedSocialWorkerName',
+          'status',
+          'isVerified',
+          'isBanned',
+          'updatedAt',
+        ]);
     }
 
     function isOwnEmailVerificationMirrorUpdate() {
@@ -91,10 +116,15 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isCurrentUser(uid);
+      // Users read their own doc. Staff may additionally read patient and
+      // social-worker docs (never admin docs). List queries must constrain
+      // `role` to this set, or Firestore rejects the whole query.
+      allow read: if isCurrentUser(uid) ||
+        (isStaff() && resource.data.role in ['patient', 'social_worker']);
       allow create, delete: if false;
-      allow update: if isCurrentUser(uid) &&
-        (isFcmTokenOnlyUpdate() || isOwnEmailVerificationMirrorUpdate());
+      allow update: if (isCurrentUser(uid) &&
+          (isFcmTokenOnlyUpdate() || isOwnEmailVerificationMirrorUpdate())) ||
+        isStaffUserUpdate();
     }
 
     match /chats/{chatId} {
@@ -117,8 +147,11 @@ service cloud.firestore {
     }
 
     match /referrals/{patientId}/referrals/{docId} {
-      allow read: if isCurrentUser(patientId);
-      allow create, update, delete: if false;
+      allow read: if isCurrentUser(patientId) || isStaff();
+      // Referrals are managed by staff from the member dashboard (create/edit,
+      // plus soft-delete via an isDeleted update). Hard deletes stay blocked.
+      allow create, update: if isStaff();
+      allow delete: if false;
     }
 
     match /{document=**} {
