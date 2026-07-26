@@ -121,6 +121,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
