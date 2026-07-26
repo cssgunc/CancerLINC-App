@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/forgot_password.dart';
 import 'package:cancerlinc/pages/create_account.dart';
-import 'package:cancerlinc/components/bottom_bar.dart';
+import 'package:cancerlinc/pages/auth_gate.dart';
 import 'package:cancerlinc/services/auth.dart';
 
 class LoginPage extends StatefulWidget {
@@ -198,7 +198,10 @@ class LoginPage extends StatefulWidget {
                         if (mounted) {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const BottomBar()),
+                            // Route through AuthGate, not straight to
+                            // BottomBar: the client-services approval check
+                            // lives there and must not be bypassed.
+                            MaterialPageRoute(builder: (context) => const AuthGate()),
                           );
                         }
                       } on FirebaseAuthException {

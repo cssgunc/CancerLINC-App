@@ -31,13 +31,12 @@ service cloud.firestore {
         request.resource.data.fcmToken is string;
     }
 
-    function isOwnEmailVerificationMirrorUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['isVerified', 'updatedAt']) &&
-        request.auth.token.email_verified == true &&
-        request.resource.data.isVerified == true &&
-        request.resource.data.updatedAt == request.time;
-    }
+    // NOTE: `isVerified` means "approved by CancerLINC client services" and is
+    // the flag that gates app access. It is written ONLY by staff (the web
+    // console's accept/reject actions) and by admin Cloud Functions — never by
+    // the patient. Email verification is tracked separately by Firebase Auth's
+    // own `emailVerified` token claim and is deliberately NOT mirrored here;
+    // allowing that self-write previously let any patient approve themselves.
 
     function checklistAllowedKeys() {
       return [
@@ -93,8 +92,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isCurrentUser(uid);
       allow create, delete: if false;
-      allow update: if isCurrentUser(uid) &&
-        (isFcmTokenOnlyUpdate() || isOwnEmailVerificationMirrorUpdate());
+      allow update: if isCurrentUser(uid) && isFcmTokenOnlyUpdate();
     }
 
     match /chats/{chatId} {

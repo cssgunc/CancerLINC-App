@@ -11,13 +11,15 @@ import 'package:cancerlinc/services/notification_service.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:cancerlinc/components/search_panel.dart';
 
-/// FEATURE FLAG (Ticket M4) — show a non-blocking "pending verification"
-/// notice to socially-unverified (non-banned) patients. They can STILL chat;
-/// the banner just tells them verification grants increased priority.
-/// To hide the banner: set this to `false`.
-/// To fully remove M4 later: set false (or delete this const, the
-/// `_unverifiedBanner()` widget, and its use in `build()` marked "// M4").
-const bool kShowUnverifiedChatNotice = true;
+/// FEATURE FLAG — show the Social Worker availability notice at the top of
+/// the chat. Set to `false` to hide it; to remove the feature entirely delete
+/// this const, the `_hoursBanner()` widget, and its use in `build()`.
+///
+/// This replaces the old M4 "pending verification" notice. That banner told
+/// unverified patients they'd get increased priority once verified, which is
+/// now unreachable copy: unverified patients are held at [AuthGate] and never
+/// reach the chat at all.
+const bool kShowSocialWorkerHoursNotice = true;
 
 // ── Message group data class ───────────────────────────────────────────────────
 
@@ -124,9 +126,10 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  /// M4: non-blocking banner for unverified (non-banned) patients. They can
-  /// still chat; this only explains that verification grants increased priority.
-  Widget _unverifiedBanner() {
+  /// Non-blocking notice telling patients when the Social Worker team is
+  /// reachable, so an after-hours message doesn't read as being ignored.
+  /// Patients can still send messages at any time.
+  Widget _hoursBanner() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -134,15 +137,15 @@ class _ChatPageState extends State<ChatPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 20, color: Color(0xFF8D6E63)),
+          const Icon(Icons.schedule, size: 20, color: Color(0xFF8D6E63)),
           const SizedBox(width: 8),
           Expanded(
             child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text(
-                  "Your account isn't verified yet — you'll have increased "
-                  'priority once verified. Questions? Call CancerLINC at ',
+                  '$socialWorkerHours Messages sent outside those hours will '
+                  'be answered the next working day. If this is urgent, call ',
                   style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
                 ),
                 CallButton(phoneNumber: cancerLincSupportPhone),
@@ -173,10 +176,9 @@ class _ChatPageState extends State<ChatPage> {
     }
     final blocked = blockedMessage != null;
 
-    // M4: unverified (non-banned) patients keep full chat access but see a
-    // non-blocking notice that verification grants increased priority.
-    final showUnverifiedNotice =
-        !_loading && !blocked && !_isVerified && kShowUnverifiedChatNotice;
+    // Availability notice for everyone who can actually use the chat.
+    final showHoursNotice =
+        !_loading && !blocked && kShowSocialWorkerHoursNotice;
 
     final canSearch = !_loading && !blocked && _chatId != null;
     // If the state we're searchable in disappears (chat blocked, unloaded),
@@ -196,7 +198,7 @@ class _ChatPageState extends State<ChatPage> {
             searchEnabled: canSearch,
             onSearchTap: _toggleSearch,
           ),
-          if (showUnverifiedNotice) _unverifiedBanner(), // M4
+          if (showHoursNotice) _hoursBanner(),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())

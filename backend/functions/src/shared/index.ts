@@ -264,7 +264,13 @@ export const onAuthUserCreated = functions.auth.user().onCreate(async (user) => 
       profilePhotoUrl: user.photoURL ?? "",
       role: "patient",
       status: "follow-up",
-      isVerified: user.emailVerified,
+      // New patients start unapproved and stay gated out of the app until
+      // client services accepts them in the staff console. This is approval
+      // state, NOT email verification — see firestore.rules users/{uid}.
+      // Only runs when the doc doesn't already exist, so patients created
+      // before this gate keep whatever isVerified they already had.
+      isVerified: false,
+      isBanned: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastContactTimestamp: serverTimestamp(),

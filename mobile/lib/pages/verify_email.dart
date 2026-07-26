@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/components/bottom_bar.dart';
+import 'package:cancerlinc/pages/auth_gate.dart';
 
 class VerifyEmail extends StatefulWidget {
   final String email;
@@ -30,14 +30,6 @@ class _VerifyEmailState extends State<VerifyEmail> {
     return false;
   }
 
-  Future<void> _mirrorEmailVerification(User user) async {
-    await user.getIdToken(true);
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'isVerified': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
   @override
   void initState() {
     super.initState();
@@ -50,11 +42,15 @@ class _VerifyEmailState extends State<VerifyEmail> {
         if (user?.emailVerified == true) {
           _isCompletingSignup = true;
           _timer?.cancel();
+          // Wait for onAuthUserCreated to write users/{uid} so AuthGate can
+          // read the approval flag instead of briefly failing closed on a
+          // missing document.
           await _waitForUserDocument(user!.uid);
-          await _mirrorEmailVerification(user);
           if (mounted) {
+            // AuthGate, not BottomBar: a freshly email-verified patient still
+            // needs client-services approval before entering the app.
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const BottomBar()),
+              MaterialPageRoute(builder: (_) => const AuthGate()),
               (route) => false,
             );
           }
