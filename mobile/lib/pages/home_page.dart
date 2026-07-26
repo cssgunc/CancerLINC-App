@@ -3,9 +3,12 @@ import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cancerlinc/models/event.dart';
+import 'package:cancerlinc/services/event_service.dart';
+
 class HomePage extends StatelessWidget {
   final void Function(int) onTabChange;
-  const HomePage({super.key, required this.onTabChange});
+  HomePage({super.key, required this.onTabChange});
 
   static final Uri _resourcesUrl = Uri.parse(
     'https://cancerlinc.org/resources2025/',
@@ -17,7 +20,7 @@ class HomePage extends StatelessWidget {
     return name;
   }
   final int newMessageCount = 12;
-  final String nextEventDate = "Nov 12";
+  final EventService _eventService = EventService();
   final int completedChecklists = 10;
   final int totalChecklists = 12;
   final int activeReferrals = 11;
@@ -78,12 +81,7 @@ class HomePage extends StatelessWidget {
                   info: "$newMessageCount new messages",
                   onTap: () => onTabChange(1),
                 ),
-                _buildCard(
-                  label: "Calendar",
-                  icon: Icons.calendar_today_outlined,
-                  info: "Next: $nextEventDate",
-                  onTap: () => onTabChange(4),
-                ),
+                _buildCalendarCard(),
                 _buildCard(
                   label: "Checklists",
                   icon: Icons.check_box_outlined,
@@ -352,6 +350,46 @@ class HomePage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  static const List<String> _shortMonths = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  String _formatShortDate(DateTime d) =>
+      '${_shortMonths[d.month - 1]} ${d.day}';
+
+  Widget _buildCalendarCard() {
+    return StreamBuilder<Event?>(
+      stream: _eventService.streamNextEvent(),
+      builder: (context, snapshot) {
+        String info;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          info = "Loading...";
+        } else if (snapshot.hasError || snapshot.data == null) {
+          info = "No upcoming events";
+        } else {
+          info = "Next: ${_formatShortDate(snapshot.data!.start)}";
+        }
+        return _buildCard(
+          label: "Calendar",
+          icon: Icons.calendar_today_outlined,
+          info: info,
+          onTap: () => onTabChange(4),
+        );
+      },
     );
   }
 }
