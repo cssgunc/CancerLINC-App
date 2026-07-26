@@ -25,6 +25,7 @@ export default function AppLayout() {
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const onMemberPage = useMatch("/member/:user");
+    const onCalendarPage = useMatch("/calendar");
     const navState = location.state as { from?: string; view?: unknown } | null;
     const backTo = navState?.from ?? "/";
     const [memberSearchValue, setMemberSearchValue] = useState("");
@@ -34,14 +35,15 @@ export default function AppLayout() {
     const [isHintTransitioning, setIsHintTransitioning] = useState(false);
 
     const searchValue = searchParams.get("q") ?? "";
-    const inputValue = onMemberPage ? memberSearchValue : searchValue;
+    const offIndexPage = Boolean(onMemberPage || onCalendarPage);
+    const inputValue = offIndexPage ? memberSearchValue : searchValue;
     const shouldShowHint = inputValue.length === 0 && !isSearchFocused;
 
     useEffect(() => {
-        if (!onMemberPage) {
+        if (!offIndexPage) {
             setMemberSearchValue("");
         }
-    }, [onMemberPage]);
+    }, [offIndexPage]);
 
     useEffect(() => {
         if (!shouldShowHint) {
@@ -69,10 +71,10 @@ export default function AppLayout() {
     }, [isHintTransitioning, upcomingHintIndex]);
 
     function handleSearchChange(value: string) {
-        if (onMemberPage) {
+        if (offIndexPage) {
             setMemberSearchValue(value);
 
-            // On member page: navigate to dashboard with query pre-filled
+            // Off the index page: navigate to dashboard with query pre-filled
             if (value) {
                 navigate(`/?q=${encodeURIComponent(value)}`);
             } else {
@@ -94,8 +96,8 @@ export default function AppLayout() {
         >
             <header className="shrink-0 border-b bg-white/95 backdrop-blur">
                 <div className="container mx-auto flex items-center gap-4 px-6 py-4">
-                    {/* Back button — only on member pages */}
-                    {onMemberPage ? (
+                    {/* Back button — only on member and calendar pages */}
+                    {onMemberPage || onCalendarPage ? (
                         <button
                             type="button"
                             onClick={() =>
@@ -158,8 +160,25 @@ export default function AppLayout() {
                         />
                     </div>
 
-                    {/* Notifications + Unverified indicator */}
+                    {/* Calendar + Notifications + Unverified indicator */}
                     <div className="flex items-center gap-2">
+                        <Link
+                            to={onCalendarPage ? "/" : "/calendar"}
+                            replace={Boolean(onCalendarPage)}
+                            aria-label={
+                                onCalendarPage
+                                    ? "Back to dashboard"
+                                    : "Event calendar"
+                            }
+                            title={
+                                onCalendarPage
+                                    ? "Back to dashboard"
+                                    : "Event calendar"
+                            }
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        >
+                            <CalendarDays className="h-5 w-5" />
+                        </Link>
                         <NotificationBell />
                         <UnverifiedIndicator />
                     </div>
@@ -167,13 +186,6 @@ export default function AppLayout() {
                     {/* Welcome / Logout */}
                     <div className="ml-auto hidden items-center gap-4 text-sm text-gray-600 md:flex shrink-0">
                         <span>Welcome, {user?.displayName}</span>
-                        <Link
-                            to="/calendar"
-                            className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                            <CalendarDays className="h-4 w-4" />
-                            Calendar
-                        </Link>
                         {isSuperuser(user?.email) ? (
                             <Link
                                 to="/staff"
