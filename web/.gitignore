@@ -5,6 +5,9 @@
 /.react-router/
 /build/
 
+# Vite
+/.vite/
+
 #environment files
 .env
 

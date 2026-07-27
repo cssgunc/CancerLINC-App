@@ -7,8 +7,8 @@ export default [
             index("routes/_index.tsx"),
             route("member/:user", "routes/member.tsx"),
             route("staff", "routes/staff_admin.tsx"),
-            route("unverified", "routes/unverified.tsx"),
             route("calendar", "routes/calendar.tsx"),
+            route("unverified", "routes/unverified-table.tsx"),
         ]),
     ]),
 

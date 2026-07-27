@@ -2,70 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
-    collection,
-    doc,
-    getCountFromServer,
-    getDocs,
-    type DocumentSnapshot,
-    limit,
-    orderBy,
-    query,
-    startAfter,
-    Timestamp,
-    updateDoc,
-    where,
-} from "firebase/firestore";
-import { db } from "~/services/firebase_app";
-
-// --- Types ---
-type UnverifiedPatient = {
-    id: string;
-    name: string;
-    email: string;
-    isBanned: boolean;
-    isVerified: boolean;
-};
-
-type PatientCategory = "verified" | "unverified" | "rejected";
-
-function getCategory(p: UnverifiedPatient): PatientCategory {
-    if (p.isBanned) return "rejected";
-    if (p.isVerified) return "verified";
-    return "unverified";
-}
-
-// --- Search helpers (prefix-range search for Firestore) ---
-// Mirrors the same helpers in _index.tsx; reuses existing indexes (role, lastNameLower) and (role, firstName)
-function prefixRange(s: string): [string, string] {
-    const lower = s.toLowerCase();
-    const upper =
-        lower.slice(0, -1) +
-        String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
-    return [lower, upper];
-}
-
-function prefixRangeExactCase(s: string): [string, string] {
-    const upper =
-        s.slice(0, -1) + String.fromCharCode(s.charCodeAt(s.length - 1) + 1);
-    return [s, upper];
-}
-
-function firstNameQueryVariants(value: string): string[] {
-    const titleCase = value.charAt(0).toUpperCase() + value.slice(1);
-    return [...new Set([value, titleCase])].filter(Boolean);
-}
-
-// --- View state ---
-// The status filters + page size are NOT persisted globally. They are only
-// "remembered" for the single round-trip: verification table → View Profile →
-// Back. That snapshot rides ephemeral router navigation state (see goToProfile
-// and the Back button in app_layout) and vanishes as soon as you navigate
-// anywhere else, so a fresh visit always starts from defaults.
-type StatusChecks = {
-    verified: boolean;
-    unverified: boolean;
-    rejected: boolean;
-};
+    acceptPatient,
+    fetchPatientsPage,
+    fetchVerificationCounts,
+    getPatientCategory,
+    rejectPatient,
+    searchPatients,
+    type PageCursor,
+    type StatusChecks,
+    type UnverifiedPatient,
+} from "~/services/unverified_patients_service";
 
 const DEFAULT_STATUS_CHECKS: StatusChecks = {
     verified: false,
@@ -73,13 +19,18 @@ const DEFAULT_STATUS_CHECKS: StatusChecks = {
     rejected: false,
 };
 
+// The status filters + page size are NOT persisted globally. They are only
+// "remembered" for the single round-trip: verification table → View Profile →
+// Back. That snapshot rides ephemeral router navigation state (see goToProfile
+// and the Back button in app_layout) and vanishes as soon as you navigate
+// anywhere else, so a fresh visit always starts from defaults.
 type ViewSnapshot = {
     statusChecks?: StatusChecks;
     pageSize?: number;
 };
 
 // --- Component ---
-export default function UnverifiedPage() {
+export default function UnverifiedTablePage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -99,13 +50,14 @@ export default function UnverifiedPage() {
         () => restoredView?.pageSize ?? 25
     );
     const [pendingCount, setPendingCount] = useState<number | null>(null);
-    const [totalPatients, setTotalPatients] = useState<number | null>(null);
     const [verifiedCount, setVerifiedCount] = useState<number | null>(null);
+    const [unverifiedCount, setUnverifiedCount] = useState<number | null>(null);
+    const [rejectedCount, setRejectedCount] = useState<number | null>(null);
     const [savingId, setSavingId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
 
     // Pagination cursors: stack of "last doc of each page" so we can go back
-    const cursorStack = useRef<DocumentSnapshot[]>([]);
+    const cursorStack = useRef<PageCursor[]>([]);
     const [page, setPage] = useState(0); // 0-indexed current page
     const [hasNextPage, setHasNextPage] = useState(false);
 
@@ -122,44 +74,20 @@ export default function UnverifiedPage() {
         return () => clearTimeout(timer);
     }, [q]);
 
-    // When ONLY "Verified" is checked, narrow the query server-side to
-    // role==patient & isVerified==true — the exact same query the main dashboard
-    // runs — so the two tables return identical results.
-    const onlyVerified =
-        statusChecks.verified &&
-        !statusChecks.unverified &&
-        !statusChecks.rejected;
-
-    // Reset to page 0 when the query or the server-side filter changes
+    // Reset to page 0 when the query or the active status filters change
     useEffect(() => {
         cursorStack.current = [];
         setPage(0);
-    }, [debouncedQuery, onlyVerified]);
+    }, [debouncedQuery, statusChecks]);
 
-    // Fetch counts once on mount
+    // Fetch counts once on mount.
     useEffect(() => {
-        const usersRef = collection(db, "users");
-        Promise.all([
-            getCountFromServer(
-                query(
-                    usersRef,
-                    where("role", "==", "patient"),
-                    where("isVerified", "==", false)
-                )
-            ),
-            getCountFromServer(query(usersRef, where("role", "==", "patient"))),
-            getCountFromServer(
-                query(
-                    usersRef,
-                    where("role", "==", "patient"),
-                    where("isVerified", "==", true)
-                )
-            ),
-        ])
-            .then(([pending, total, verified]) => {
-                setPendingCount(pending.data().count);
-                setTotalPatients(total.data().count);
-                setVerifiedCount(verified.data().count);
+        fetchVerificationCounts()
+            .then((counts) => {
+                setPendingCount(counts.pending);
+                setVerifiedCount(counts.verified);
+                setRejectedCount(counts.rejected);
+                setUnverifiedCount(counts.unverified);
             })
             .catch(() => {
                 // Non-critical — count badges stay blank
@@ -172,131 +100,37 @@ export default function UnverifiedPage() {
         setLoading(true);
         setError(null);
 
-        async function fetchPatients() {
+        async function loadPatients() {
             try {
-                const usersRef = collection(db, "users");
-
                 if (debouncedQuery.length > 0) {
-                    // --- Server-side search mode ---
-                    // Uses existing indexes: (role, lastNameLower) and (role, firstName)
-                    // No isVerified/isBanned filter — this page intentionally shows all categories
-                    const [lo, hi] = prefixRange(debouncedQuery);
-                    const patientQueries = [
-                        getDocs(
-                            query(
-                                usersRef,
-                                where("role", "==", "patient"),
-                                where("lastNameLower", ">=", lo),
-                                where("lastNameLower", "<", hi),
-                                orderBy("lastNameLower"),
-                                limit(pageSize)
-                            )
-                        ),
-                    ];
-
-                    for (const variant of firstNameQueryVariants(
-                        debouncedQuery
-                    )) {
-                        const [firstLo, firstHi] =
-                            prefixRangeExactCase(variant);
-                        patientQueries.push(
-                            getDocs(
-                                query(
-                                    usersRef,
-                                    where("role", "==", "patient"),
-                                    where("firstName", ">=", firstLo),
-                                    where("firstName", "<", firstHi),
-                                    orderBy("firstName"),
-                                    limit(pageSize)
-                                )
-                            )
-                        );
-                    }
-
-                    const patientSnaps = await Promise.all(patientQueries);
+                    const results = await searchPatients(
+                        debouncedQuery,
+                        pageSize
+                    );
                     if (cancelled) return;
-
-                    // Merge and deduplicate by id
-                    const seen = new Set<string>();
-                    const merged = patientSnaps
-                        .flatMap((snap) => snap.docs)
-                        .filter((d) => {
-                            if (seen.has(d.id)) return false;
-                            seen.add(d.id);
-                            return true;
-                        })
-                        .sort((a, b) => {
-                            const aLast = String(a.data().lastName ?? "");
-                            const bLast = String(b.data().lastName ?? "");
-                            return aLast.localeCompare(bLast);
-                        });
-
-                    const results: UnverifiedPatient[] = merged.map((d) => {
-                        const data = d.data();
-                        const email = (data.email as string) || "";
-                        return {
-                            id: d.id,
-                            name:
-                                `${(data.firstName as string) ?? ""} ${(data.lastName as string) ?? ""}`.trim() ||
-                                email ||
-                                d.id,
-                            email,
-                            isBanned: data.isBanned === true,
-                            isVerified: data.isVerified === true,
-                        };
-                    });
-
                     setPatients(results);
                     setHasNextPage(false); // no cursor pagination while searching
                 } else {
-                    // --- Cursor-pagination mode ---
-                    // Uses existing composite indexes: (role, lastName), or
-                    // (role, isVerified, lastName) when filtering to verified only.
-                    const constraints: Parameters<typeof query>[1][] = [
-                        where("role", "==", "patient"),
-                    ];
-                    if (onlyVerified) {
-                        constraints.push(where("isVerified", "==", true));
-                    }
-                    constraints.push(orderBy("lastName"));
-
-                    if (page > 0 && cursorStack.current[page - 1]) {
-                        constraints.push(
-                            startAfter(cursorStack.current[page - 1])
-                        );
-                    }
-
-                    constraints.push(limit(pageSize + 1));
-
-                    const snap = await getDocs(query(usersRef, ...constraints));
+                    const afterDoc =
+                        page > 0 ? cursorStack.current[page - 1] : undefined;
+                    const result = await fetchPatientsPage(
+                        { pageSize, statusChecks, afterDoc },
+                        () => cancelled
+                    );
                     if (cancelled) return;
 
-                    const hasNext = snap.docs.length > pageSize;
-                    const docs = hasNext
-                        ? snap.docs.slice(0, pageSize)
-                        : snap.docs;
-
-                    if (docs.length > 0 && cursorStack.current.length <= page) {
-                        cursorStack.current[page] = docs[docs.length - 1];
+                    // Cursor for the next page starts after the last raw doc
+                    // we actually consumed (matching or not), so no docs are
+                    // skipped or duplicated across pages.
+                    if (
+                        result.lastConsumedDoc &&
+                        cursorStack.current.length <= page
+                    ) {
+                        cursorStack.current[page] = result.lastConsumedDoc;
                     }
 
-                    const results: UnverifiedPatient[] = docs.map((d) => {
-                        const data = d.data();
-                        const email = (data.email as string) || "";
-                        return {
-                            id: d.id,
-                            name:
-                                `${(data.firstName as string) ?? ""} ${(data.lastName as string) ?? ""}`.trim() ||
-                                email ||
-                                d.id,
-                            email,
-                            isBanned: data.isBanned === true,
-                            isVerified: data.isVerified === true,
-                        };
-                    });
-
-                    setPatients(results);
-                    setHasNextPage(hasNext);
+                    setPatients(result.patients);
+                    setHasNextPage(result.hasNextPage);
                 }
             } catch (e: unknown) {
                 if (!cancelled) {
@@ -308,22 +142,36 @@ export default function UnverifiedPage() {
             }
         }
 
-        void fetchPatients();
+        void loadPatients();
         return () => {
             cancelled = true;
         };
-    }, [page, debouncedQuery, pageSize, onlyVerified]);
+    }, [page, debouncedQuery, pageSize, statusChecks]);
 
-    // Client-side filter by status checkboxes. When the server query already
-    // narrowed to verified-only (and we're not searching), show rows as-is so
-    // the results match the main dashboard exactly.
+    // While searching, results aren't pre-filtered by status during fetch, so
+    // apply the status checkboxes here. During cursor pagination, `patients`
+    // is already filtered by status while accumulating each page.
     const visiblePatients = useMemo(() => {
-        if (!debouncedQuery && onlyVerified) return patients;
-        return patients.filter((p) => statusChecks[getCategory(p)]);
-    }, [patients, statusChecks, debouncedQuery, onlyVerified]);
+        if (!debouncedQuery) return patients;
+        return patients.filter((p) => statusChecks[getPatientCategory(p)]);
+    }, [patients, statusChecks, debouncedQuery]);
 
-    // Pagination denominator tracks the active server-side filter.
-    const paginationTotal = onlyVerified ? verifiedCount : totalPatients;
+    // Pagination denominator tracks the sum of counts for the active status
+    // checkboxes, so "Showing X of Y" matches what cursor pagination will
+    // actually surface across pages. Stays null (hidden) until every count
+    // relevant to the active checkboxes has loaded.
+    const paginationTotal = useMemo(() => {
+        const relevant = [
+            statusChecks.verified ? verifiedCount : 0,
+            statusChecks.unverified ? unverifiedCount : 0,
+            statusChecks.rejected ? rejectedCount : 0,
+        ];
+        if (relevant.some((c) => c === null)) return null;
+        return relevant.reduce(
+            (sum: number, c: number | null) => sum + (c ?? 0),
+            0
+        );
+    }, [statusChecks, verifiedCount, unverifiedCount, rejectedCount]);
 
     // Navigate to a member profile, carrying the current URL as origin so the
     // Back button in app_layout returns here with filters/search intact.
@@ -362,11 +210,7 @@ export default function UnverifiedPage() {
         );
 
         try {
-            await updateDoc(doc(db, "users", id), {
-                isVerified: true,
-                isBanned: false,
-                updatedAt: Timestamp.now(),
-            });
+            await acceptPatient(id);
         } catch {
             // Revert on failure
             setPatients(previousPatients);
@@ -392,11 +236,7 @@ export default function UnverifiedPage() {
         );
 
         try {
-            await updateDoc(doc(db, "users", id), {
-                isBanned: true,
-                isVerified: false,
-                updatedAt: Timestamp.now(),
-            });
+            await rejectPatient(id);
         } catch {
             // Revert on failure
             setPatients(previousPatients);
@@ -524,7 +364,7 @@ export default function UnverifiedPage() {
                         <table className="table-fixed min-w-full divide-y divide-gray-200">
                             <thead className="select-none bg-gray-50 text-left text-sm text-gray-600">
                                 <tr>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         <div className="flex items-center gap-1.5">
                                             Patient Name
                                             <button
@@ -543,10 +383,16 @@ export default function UnverifiedPage() {
                                             </button>
                                         </div>
                                     </th>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
+                                        Phone Number
+                                    </th>
+                                    <th className="w-1/5 px-6 py-4 font-medium">
+                                        Email
+                                    </th>
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         Verification Status
                                     </th>
-                                    <th className="w-1/3 px-6 py-4 font-medium">
+                                    <th className="w-1/5 px-6 py-4 font-medium">
                                         <div className="flex items-center justify-between gap-2">
                                             <span>Actions</span>
                                             <button
@@ -577,7 +423,7 @@ export default function UnverifiedPage() {
                                 {loading ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-12 text-center text-gray-400"
                                         >
                                             <Loader2 className="mx-auto h-6 w-6 animate-spin" />
@@ -586,7 +432,7 @@ export default function UnverifiedPage() {
                                 ) : error ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-10 text-center text-sm text-red-600"
                                         >
                                             {error}
@@ -595,7 +441,7 @@ export default function UnverifiedPage() {
                                 ) : visiblePatients.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={3}
+                                            colSpan={5}
                                             className="px-6 py-10 text-center text-sm text-gray-400"
                                         >
                                             No patients match the current
@@ -604,7 +450,7 @@ export default function UnverifiedPage() {
                                     </tr>
                                 ) : (
                                     visiblePatients.map((p) => {
-                                        const category = getCategory(p);
+                                        const category = getPatientCategory(p);
                                         return (
                                             <tr
                                                 key={p.id}
@@ -619,6 +465,12 @@ export default function UnverifiedPage() {
                                                     >
                                                         {p.name}
                                                     </button>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {p.phoneNumber || "—"}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {p.email || "—"}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {category === "verified" ? (
@@ -680,18 +532,6 @@ export default function UnverifiedPage() {
                                                                 </button>
                                                             </>
                                                         ) : null}
-                                                        {/* Muted "View Profile" button — greyer than Accept/Reject */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                goToProfile(
-                                                                    p.id
-                                                                )
-                                                            }
-                                                            className="rounded-xl border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-                                                        >
-                                                            View Profile
-                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>

@@ -1,29 +1,22 @@
+import 'package:cancerlinc/pages/verify_email.dart';
+import 'package:cancerlinc/services/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/services/auth.dart';
-
-import 'package:cancerlinc/pages/verify_email.dart';
-
-
-
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({super.key});
 
-
   @override
   State<CreateAccountPage> createState() => _CreateAccountPageState();
-
-
 }
-
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
   final AuthService _authService = AuthService();
@@ -37,11 +30,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     _emailController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _phoneNumberController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
   }
-
 
   String? _validateEmail(String? v) {
     final s = v ?? '';
@@ -51,7 +44,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     }
     return null;
   }
-
 
   String? _validateFirstName(String? v) {
     if ((v ?? '').trim().isEmpty) return 'Enter your first name';
@@ -63,8 +55,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     return null;
   }
 
-
-
+  String? _validatePhoneNumber(String? v) {
+    final s = (v ?? '').trim();
+    if (s.isEmpty) return 'Enter your phone number';
+    if (!RegExp(r'^\+?[0-9\s\-\(\)]{7,}$').hasMatch(s)) {
+      return 'Enter a valid phone number';
+    }
+    return null;
+  }
 
   String? _validatePassword(String? v) {
     final s = v ?? '';
@@ -72,7 +70,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     if (s.length < 8) return 'Password must be at least 8 characters';
     return null;
   }
-
 
   String? _validateConfirm(String? v) {
     if ((v ?? '').isEmpty) return 'Retype your password';
@@ -98,21 +95,47 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         _passwordController.text.trim(),
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
+        phoneNumber: _phoneNumberController.text.trim(),
       );
       await _authService.sendEmailVerification();
 
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => VerifyEmail(email: _emailController.text.trim(), isSignup: true)),
+          MaterialPageRoute(
+            builder: (context) => VerifyEmail(
+              email: _emailController.text.trim(),
+              isSignup: true,
+            ),
+          ),
         );
       }
-
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = _getFirebaseError(e);
       });
     }
+  }
+
+  static const Color _fieldBorderColor = Color(0xFF43474F);
+
+  InputDecoration _fieldDecoration({Widget? suffixIcon}) {
+    return InputDecoration(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _fieldBorderColor),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _fieldBorderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _fieldBorderColor, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+      suffixIcon: suffixIcon,
+    );
   }
 
   String _getFirebaseError(FirebaseAuthException e) {
@@ -127,7 +150,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         return 'Something went wrong. Try again.';
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -145,27 +167,36 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 borderRadius: BorderRadius.circular(6),
                 child: const Padding(
                   padding: EdgeInsets.only(top: 30.0, bottom: 8.0),
-                  child: Row(children: [
-                    const Padding(padding: EdgeInsets.only(left: 8.0)),
-                    Icon(Icons.arrow_back_ios, color: Color(0xFF43474F)),
-                    Text("Back to login", style: TextStyle(color: Color(0xFF43474F)))]),
+                  child: Row(
+                    children: [
+                      Padding(padding: EdgeInsets.only(left: 8.0)),
+                      Icon(Icons.arrow_back_ios, color: Color(0xFF43474F)),
+                      Text(
+                        "Back to login",
+                        style: TextStyle(color: Color(0xFF43474F)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-
 
               const SizedBox(height: 16),
               Center(
                 child: Column(
                   children: const [
                     SizedBox(height: 8),
-                    Text('Create Account', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w400)),
+                    Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                   ],
                 ),
               ),
 
-
               const SizedBox(height: 24),
-
 
               Form(
                 key: _formKey,
@@ -178,23 +209,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       validator: _validateEmail,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                      ),
+                      decoration: _fieldDecoration(),
                     ),
-
 
                     const SizedBox(height: 16),
                     const Text('First Name', style: TextStyle(fontSize: 14)),
@@ -203,23 +219,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       controller: _firstNameController,
                       textCapitalization: TextCapitalization.words,
                       validator: _validateFirstName,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                      ),
+                      decoration: _fieldDecoration(),
                     ),
-
 
                     const SizedBox(height: 16),
                     const Text('Last Name', style: TextStyle(fontSize: 14)),
@@ -228,23 +229,18 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       controller: _lastNameController,
                       textCapitalization: TextCapitalization.words,
                       validator: _validateLastName,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                      ),
+                      decoration: _fieldDecoration(),
                     ),
 
+                    const SizedBox(height: 16),
+                    const Text('Phone Number', style: TextStyle(fontSize: 14)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _phoneNumberController,
+                      keyboardType: TextInputType.phone,
+                      validator: _validatePhoneNumber,
+                      decoration: _fieldDecoration(),
+                    ),
 
                     const SizedBox(height: 16),
                     const Text('Password', style: TextStyle(fontSize: 14)),
@@ -253,52 +249,34 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       controller: _passwordController,
                       obscureText: _obscure1,
                       validator: _validatePassword,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      decoration: _fieldDecoration(
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscure1 = !_obscure1),
+                          icon: Icon(
+                            _obscure1 ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure1 = !_obscure1),
                         ),
                       ),
                     ),
 
-
                     const SizedBox(height: 16),
-                    const Text('Retype Password', style: TextStyle(fontSize: 14)),
+                    const Text(
+                      'Retype Password',
+                      style: TextStyle(fontSize: 14),
+                    ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _confirmController,
                       obscureText: _obscure2,
                       validator: _validateConfirm,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFF43474F), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      decoration: _fieldDecoration(
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscure2 = !_obscure2),
+                          icon: Icon(
+                            _obscure2 ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure2 = !_obscure2),
                         ),
                       ),
                     ),
@@ -307,7 +285,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.red.shade50,
                             border: Border.all(color: Colors.red.shade300),
@@ -316,7 +297,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -338,17 +323,23 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       children: [
                         Checkbox(
                           value: _acceptedTerms,
-                          onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+                          onChanged: (v) =>
+                              setState(() => _acceptedTerms = v ?? false),
                         ),
                         Expanded(
                           child: RichText(
                             text: TextSpan(
                               style: const TextStyle(color: Colors.black87),
                               children: [
-                                const TextSpan(text: 'I have read and consent to the '),
+                                const TextSpan(
+                                  text: 'I have read and consent to the ',
+                                ),
                                 TextSpan(
                                   text: 'Terms and Conditions',
-                                  style: const TextStyle(decoration: TextDecoration.underline, color: Color(0xFF43474F)),
+                                  style: const TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    color: Color(0xFF43474F),
+                                  ),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
                                       // TODO: open terms link
@@ -361,7 +352,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       ],
                     ),
 
-
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -370,15 +360,18 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                         onPressed: _onSignUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF43474F),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                           overlayColor: Colors.white,
                           splashFactory: InkRipple.splashFactory,
                         ),
-                        child: const Text('SIGN UP', style: TextStyle(color: Colors.white)),
+                        child: const Text(
+                          'SIGN UP',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ),
-
-
                   ],
                 ),
               ),
