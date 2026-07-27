@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import {
     ChevronLeft,
     ChevronRight,
@@ -23,7 +22,6 @@ import {
     orderBy,
 } from "firebase/firestore";
 import { db } from "~/firebase";
-import { useAuth } from "~/services/firebase_provider";
 
 // types
 interface CalendarEvent {
@@ -109,7 +107,6 @@ const EMPTY_FORM = {
 
 // --- Page ---
 export default function CalendarPage() {
-    const { user, logout } = useAuth();
     const today = new Date();
     const todayStr = toDateStr(
         today.getFullYear(),
@@ -259,35 +256,6 @@ export default function CalendarPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
-                <div className="container mx-auto flex items-center gap-4 px-6 py-4">
-                    <img
-                        src="/CancerLINC-Logo-1.png"
-                        alt="CancerLINC Logo"
-                        className="w-16 mb-4"
-                    />
-                    <Link
-                        to="/"
-                        className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Dashboard
-                    </Link>
-                    <div className="flex-1" />
-                    <div className="hidden items-center gap-4 text-sm text-gray-600 md:flex">
-                        <span>Welcome, {user?.displayName}</span>
-                        <button
-                            type="button"
-                            onClick={logout}
-                            className="font-medium text-gray-900 underline underline-offset-2"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </header>
-
             {/* Main */}
             <main className="container mx-auto px-6 py-8">
                 <div className="mb-6 flex items-center justify-between">

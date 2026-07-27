@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { UserRoundCheck } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useMatch, useNavigate } from "react-router";
 import {
     collection,
     getCountFromServer,
@@ -11,6 +11,7 @@ import { db } from "~/services/firebase_app";
 
 export default function UnverifiedIndicator() {
     const navigate = useNavigate();
+    const onUnverifiedPage = useMatch("/unverified");
     const [count, setCount] = useState(0);
 
     useEffect(() => {
@@ -31,8 +32,16 @@ export default function UnverifiedIndicator() {
         <div className="relative shrink-0">
             <button
                 type="button"
-                onClick={() => navigate("/unverified")}
-                aria-label="Unverified patients"
+                onClick={() =>
+                    onUnverifiedPage
+                        ? navigate("/", { replace: true })
+                        : navigate("/unverified")
+                }
+                aria-label={
+                    onUnverifiedPage
+                        ? "Back to dashboard"
+                        : "Unverified patients"
+                }
                 className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             >
                 <UserRoundCheck className="h-5 w-5" />
