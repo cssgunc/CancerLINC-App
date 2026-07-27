@@ -1,19 +1,20 @@
 export {
+  deactivateStaleChats,
   onAuthUserCreated,
   onMessageCreated,
-  deactivateStaleChats,
   sendMessageNotification,
 } from "./shared";
 
 export {
   createUserChat,
-  sendChatMessage,
   sendChatImageMessage,
+  sendChatMessage,
 } from "./patient";
 
 export {
   createStaffAccount,
-  setStaffDisabled,
   deleteStaffAccount,
+  setStaffDisabled,
 } from "./admin";
 
+export { calendarIcs } from "./calendar";
