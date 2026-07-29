@@ -61,6 +61,15 @@ service cloud.firestore {
         request.resource.data.phoneNumber is string;
     }
 
+    // Mobile's signup write can land before the onAuthUserCreated trigger
+    // seeds the doc, which makes it a create instead of an update. Allow
+    // only that same narrow shape; onAuthUserCreated merges in role,
+    // isVerified, etc. afterward and preserves this phoneNumber.
+    function isOwnPhoneNumberCreate() {
+      return request.resource.data.keys().hasOnly(['phoneNumber', 'updatedAt']) &&
+        request.resource.data.phoneNumber is string;
+    }
+
     // Fields staff may change on a patient's user doc (assignment, status,
     // verification). Scoped so staff can't rewrite arbitrary account fields.
     // lastContactTimestamp is included because the web console stamps it on
@@ -156,10 +165,11 @@ service cloud.firestore {
       // outright. social_worker and admin are equivalent here anyway.
       allow read: if isCurrentUser(uid) || isStaff();
       // Docs are seeded by the onAuthUserCreated trigger and staff accounts by
-      // the createStaffAccount callable, both on admin credentials. Leaving
-      // create closed keeps a client from self-issuing a doc with
-      // role: 'admin' or isVerified: true before the trigger runs.
-      allow create, delete: if false;
+      // the createStaffAccount callable, both on admin credentials. The one
+      // exception is the mobile signup race above, narrowed to phoneNumber so
+      // a client still can't self-issue role: 'admin' or isVerified: true.
+      allow create: if isCurrentUser(uid) && isOwnPhoneNumberCreate();
+      allow delete: if false;
       allow update: if (isCurrentUser(uid) &&
           (isFcmTokenOnlyUpdate() || isOwnPhoneNumberUpdate())) ||
         isStaffUserUpdate();
