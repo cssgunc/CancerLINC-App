@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onRequest } from "firebase-functions/v2/https";
+import {onRequest} from "firebase-functions/v2/https";
 
 // admin may already be initialized by another module in this codebase.
 if (admin.apps.length === 0) {
@@ -47,10 +47,10 @@ interface EventDoc {
 // Escape a value for use in an ICS TEXT field (RFC 5545 §3.3.11).
 function escapeText(value: string): string {
   return value
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r\n|\n|\r/g, "\\n");
+      .replace(/\\/g, "\\\\")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,")
+      .replace(/\r\n|\n|\r/g, "\\n");
 }
 
 // Zero-pad to two digits.
@@ -63,9 +63,9 @@ function pad(n: number): string {
 // Components are treated as UTC purely for arithmetic so the host server's
 // timezone never affects the result.
 function localStamp(
-  dateStr: string,
-  timeStr: string,
-  addMinutes = 0,
+    dateStr: string,
+    timeStr: string,
+    addMinutes = 0,
 ): string | null {
   const dateParts = dateStr.split("-").map(Number);
   const timeParts = timeStr.split(":").map(Number);
@@ -120,15 +120,25 @@ function foldLine(line: string): string {
     limit = 74;
   }
   return chunks
-    .map((c, i) => (i === 0 ? "" : " ") + c.toString("utf8"))
-    .join("\r\n");
+      .map((c, i) => (i === 0 ? "" : " ") + c.toString("utf8"))
+      .join("\r\n");
+}
+
+// True only for a well-formed http(s) URL, so we never emit a bogus join link.
+function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function buildEvent(
-  id: string,
-  ev: EventDoc,
-  dtstamp: string,
-  projectId: string,
+    id: string,
+    ev: EventDoc,
+    dtstamp: string,
+    projectId: string,
 ): string[] {
   const lines: string[] = ["BEGIN:VEVENT"];
   lines.push(`UID:${id}@${projectId}`);
@@ -155,20 +165,34 @@ function buildEvent(
 
   if (ev.title) lines.push(`SUMMARY:${escapeText(ev.title)}`);
 
-  const descParts: string[] = [];
-  if (ev.description) descParts.push(ev.description);
-  if (ev.tags && ev.tags.length > 0)
-    descParts.push(`Tags: ${ev.tags.join(", ")}`);
-  if (descParts.length > 0) {
-    lines.push(`DESCRIPTION:${escapeText(descParts.join("\n\n"))}`);
+  const location = (ev.location ?? "").trim();
+  const format = ev.isVirtual ? "Virtual" : "In Person";
+  // Only treat the location as a join link when the event is virtual and the
+  // location is actually a URL — otherwise it's a physical address.
+  const joinUrl = ev.isVirtual && isHttpUrl(location) ? location : null;
+
+  // Structured LOCATION field: shown only when a location is provided.
+  if (location) lines.push(`LOCATION:${escapeText(location)}`);
+
+  // Conference join link so calendar apps render a "Join" button. CONFERENCE
+  // is RFC 7986; URL is added for older clients that don't support it. The
+  // value is a URI, so it is not TEXT-escaped.
+  if (joinUrl) {
+    lines.push(`CONFERENCE;VALUE=URI;FEATURE=VIDEO;LABEL=Join:${joinUrl}`);
+    lines.push(`URL:${joinUrl}`);
   }
 
-  const location = (ev.location ?? "").trim();
-  if (location) {
-    lines.push(`LOCATION:${escapeText(location)}`);
-  } else if (ev.isVirtual) {
-    lines.push("LOCATION:Virtual");
+  // DESCRIPTION always carries the format (and location, if any) so the core
+  // details survive even if a client drops the structured props above.
+  const metaLines = [`Format: ${format}`];
+  if (location) metaLines.push(`Location: ${location}`);
+  if (ev.tags && ev.tags.length > 0) {
+    metaLines.push(`Tags: ${ev.tags.join(", ")}`);
   }
+  const descParts: string[] = [];
+  if (ev.description) descParts.push(ev.description);
+  descParts.push(metaLines.join("\n"));
+  lines.push(`DESCRIPTION:${escapeText(descParts.join("\n\n"))}`);
 
   if (ev.updatedAt) {
     lines.push(`LAST-MODIFIED:${utcStamp(ev.updatedAt.toDate())}`);
@@ -178,17 +202,12 @@ function buildEvent(
   return lines;
 }
 
-/**
- * Public HTTPS endpoint that serves the CancerLINC events calendar as a live
- * iCalendar (ICS) feed. Calendar clients (Google, Apple, WordPress plugins)
- * subscribe to this URL and re-poll it for updates.
- */
 // Build the full VCALENDAR document from a list of events. Pure and
 // side-effect free so it can be unit tested without Firestore.
 export function buildCalendar(
-  events: Array<EventDoc & { id: string }>,
-  projectId: string,
-  now: Date = new Date(),
+    events: Array<EventDoc & { id: string }>,
+    projectId: string,
+    now: Date = new Date(),
 ): string {
   const dtstamp = utcStamp(now);
   const lines: string[] = [
@@ -211,35 +230,38 @@ export function buildCalendar(
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
 
+// Public HTTPS endpoint that serves the CancerLINC events calendar as a live
+// iCalendar (ICS) feed. Calendar clients (Google, Apple, WordPress plugins)
+// subscribe to this URL and re-poll it for updates.
 export const calendarIcs = onRequest(
-  { invoker: "public", cors: true },
-  async (req, res) => {
-    try {
-      const projectId =
+    {invoker: "public", cors: true},
+    async (req, res) => {
+      try {
+        const projectId =
         process.env.GCLOUD_PROJECT ?? process.env.GCP_PROJECT ?? "cancerlinc";
-      const snapshot = await admin
-        .firestore()
-        .collection("events")
-        .orderBy("date")
-        .get();
+        const snapshot = await admin
+            .firestore()
+            .collection("events")
+            .orderBy("date")
+            .get();
 
-      const events = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as EventDoc),
-      }));
-      const body = buildCalendar(events, projectId);
+        const events = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as EventDoc),
+        }));
+        const body = buildCalendar(events, projectId);
 
-      res.set("Content-Type", "text/calendar; charset=utf-8");
-      res.set(
-        "Content-Disposition",
-        'inline; filename="cancerlinc-events.ics"',
-      );
-      // Let subscribers and any CDN cache briefly; the feed stays effectively live.
-      res.set("Cache-Control", "public, max-age=300");
-      res.status(200).send(body);
-    } catch (err) {
-      console.error("Failed to build ICS feed", err);
-      res.status(500).send("Failed to build calendar feed");
-    }
-  },
+        res.set("Content-Type", "text/calendar; charset=utf-8");
+        res.set(
+            "Content-Disposition",
+            "inline; filename=\"cancerlinc-events.ics\"",
+        );
+        // Let subscribers and any CDN cache briefly; the feed stays effectively live.
+        res.set("Cache-Control", "public, max-age=300");
+        res.status(200).send(body);
+      } catch (err) {
+        console.error("Failed to build ICS feed", err);
+        res.status(500).send("Failed to build calendar feed");
+      }
+    },
 );
