@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Checklist } from "~/types/checklist";
 
@@ -8,8 +8,8 @@ interface ChecklistCardProps {
     onEditItem: (index: number, text: string) => void;
     onDeleteItem: (index: number) => void;
     onAddItem: (text: string) => void;
-    onRename: (title: string) => void;
-    onDelete: () => void;
+    onEditDetails: (details: { title: string; subtitle: string }) => void;
+    onArchive: () => void;
 }
 
 export default function ChecklistCard({
@@ -18,15 +18,16 @@ export default function ChecklistCard({
     onEditItem,
     onDeleteItem,
     onAddItem,
-    onRename,
-    onDelete,
+    onEditDetails,
+    onArchive,
 }: ChecklistCardProps) {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [itemDraft, setItemDraft] = useState("");
     const [newItemText, setNewItemText] = useState("");
     const [isAddingItem, setIsAddingItem] = useState(false);
-    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [isEditingDetails, setIsEditingDetails] = useState(false);
     const [titleDraft, setTitleDraft] = useState(checklist.title);
+    const [subtitleDraft, setSubtitleDraft] = useState(checklist.subtitle);
 
     const completedCount = checklist.items.filter(
         (item) => item.checked
@@ -56,81 +57,135 @@ export default function ChecklistCard({
         setIsAddingItem(false);
     }
 
-    function commitTitle() {
+    function startEditingDetails() {
+        setTitleDraft(checklist.title);
+        setSubtitleDraft(checklist.subtitle);
+        setIsEditingDetails(true);
+    }
+
+    function cancelEditingDetails() {
+        setTitleDraft(checklist.title);
+        setSubtitleDraft(checklist.subtitle);
+        setIsEditingDetails(false);
+    }
+
+    function commitDetails() {
         const title = titleDraft.trim();
-        if (title && title !== checklist.title) {
-            onRename(title);
-        } else {
-            setTitleDraft(checklist.title);
+        const subtitle = subtitleDraft.trim();
+
+        // A checklist with no title is unidentifiable in the list, so an empty
+        // title discards the edit rather than saving it. Subtitles are optional.
+        if (!title) {
+            cancelEditingDetails();
+            return;
         }
-        setIsEditingTitle(false);
+
+        if (title !== checklist.title || subtitle !== checklist.subtitle) {
+            onEditDetails({ title, subtitle });
+        }
+        setIsEditingDetails(false);
     }
 
     return (
         <article className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                    {isEditingTitle ? (
-                        <input
-                            autoFocus
-                            value={titleDraft}
-                            onChange={(event) =>
-                                setTitleDraft(event.target.value)
-                            }
-                            onBlur={commitTitle}
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter") commitTitle();
-                                if (event.key === "Escape") {
-                                    setTitleDraft(checklist.title);
-                                    setIsEditingTitle(false);
+                    {isEditingDetails ? (
+                        <div className="space-y-1">
+                            <input
+                                autoFocus
+                                value={titleDraft}
+                                placeholder="Checklist title"
+                                onChange={(event) =>
+                                    setTitleDraft(event.target.value)
                                 }
-                            }}
-                            className="w-full rounded border border-gray-300 px-2 py-1 text-[15px] font-bold text-gray-900 focus:border-gray-500 focus:outline-none"
-                        />
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") commitDetails();
+                                    if (event.key === "Escape")
+                                        cancelEditingDetails();
+                                }}
+                                className="w-full rounded border border-gray-300 px-2 py-1 text-[15px] font-bold text-gray-900 focus:border-gray-500 focus:outline-none"
+                            />
+                            <input
+                                value={subtitleDraft}
+                                placeholder="Subtitle (optional)"
+                                onChange={(event) =>
+                                    setSubtitleDraft(event.target.value)
+                                }
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") commitDetails();
+                                    if (event.key === "Escape")
+                                        cancelEditingDetails();
+                                }}
+                                className="w-full rounded border border-gray-300 px-2 py-1 text-[13px] text-gray-600 focus:border-gray-500 focus:outline-none"
+                            />
+                        </div>
                     ) : (
-                        <h3 className="text-[15px] font-bold leading-tight text-gray-900">
-                            {checklist.title || "Untitled checklist"}
-                        </h3>
-                    )}
+                        <>
+                            <h3 className="text-[15px] font-bold leading-tight text-gray-900">
+                                {checklist.title || "Untitled checklist"}
+                            </h3>
 
-                    {checklist.subtitle ? (
-                        <p className="mt-0.5 text-[13px] text-gray-500">
-                            {checklist.subtitle}
-                        </p>
-                    ) : null}
+                            {checklist.subtitle ? (
+                                <p className="mt-0.5 text-[13px] text-gray-500">
+                                    {checklist.subtitle}
+                                </p>
+                            ) : null}
+                        </>
+                    )}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
-                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-700">
-                        {completedCount}/{checklist.items.length}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setTitleDraft(checklist.title);
-                            setIsEditingTitle(true);
-                        }}
-                        aria-label="Rename checklist"
-                        className="p-1 text-gray-400 transition-colors hover:text-gray-700"
-                    >
-                        <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    `Delete the "${checklist.title || "Untitled"}" checklist and all of its items?`
-                                )
-                            ) {
-                                onDelete();
-                            }
-                        }}
-                        aria-label="Delete checklist"
-                        className="p-1 text-gray-400 transition-colors hover:text-red-600"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
+                    {isEditingDetails ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={commitDetails}
+                                aria-label="Save checklist details"
+                                className="p-1 text-gray-500 transition-colors hover:text-green-600"
+                            >
+                                <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={cancelEditingDetails}
+                                aria-label="Cancel checklist details edit"
+                                className="p-1 text-gray-500 transition-colors hover:text-gray-900"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-700">
+                                {completedCount}/{checklist.items.length}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={startEditingDetails}
+                                aria-label="Edit checklist title and subtitle"
+                                className="p-1 text-gray-400 transition-colors hover:text-gray-700"
+                            >
+                                <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (
+                                        window.confirm(
+                                            `Remove the "${checklist.title || "Untitled"}" checklist from this patient's list? It will be archived, not permanently deleted.`
+                                        )
+                                    ) {
+                                        onArchive();
+                                    }
+                                }}
+                                aria-label="Archive checklist"
+                                className="p-1 text-gray-400 transition-colors hover:text-red-600"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 

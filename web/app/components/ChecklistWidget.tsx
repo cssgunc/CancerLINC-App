@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { Check, X } from "lucide-react";
 import ChecklistCard from "~/components/ChecklistCard";
 import CollapsibleSection from "~/components/CollapsibleSection";
 import {
     addChecklist,
     addChecklistItem,
-    deleteChecklist,
+    archiveChecklist,
     deleteChecklistItem,
     editChecklistItem,
     toggleChecklistItem,
@@ -24,6 +25,8 @@ export default function ChecklistWidget({
 }: ChecklistWidgetProps) {
     const { checklists, loading, error } = useChecklists(patientId);
     const [actionError, setActionError] = useState("");
+    const [isAddingChecklist, setIsAddingChecklist] = useState(false);
+    const [newChecklistTitle, setNewChecklistTitle] = useState("");
 
     const heading = patientFirstName
         ? `${patientFirstName}'s Checklists`
@@ -41,6 +44,19 @@ export default function ChecklistWidget({
         });
     }
 
+    function cancelNewChecklist() {
+        setNewChecklistTitle("");
+        setIsAddingChecklist(false);
+    }
+
+    function commitNewChecklist() {
+        const title = newChecklistTitle.trim();
+        if (title) {
+            run(() => addChecklist(patientId, { title }));
+        }
+        cancelNewChecklist();
+    }
+
     return (
         <CollapsibleSection
             title={heading}
@@ -48,14 +64,7 @@ export default function ChecklistWidget({
                 <button
                     type="button"
                     className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
-                    onClick={() => {
-                        const title = window.prompt("New checklist title");
-                        if (title && title.trim()) {
-                            run(() =>
-                                addChecklist(patientId, { title: title.trim() })
-                            );
-                        }
-                    }}
+                    onClick={() => setIsAddingChecklist(true)}
                 >
                     + Add
                 </button>
@@ -63,6 +72,40 @@ export default function ChecklistWidget({
         >
             {actionError ? (
                 <p className="mb-3 text-sm text-red-600">{actionError}</p>
+            ) : null}
+
+            {isAddingChecklist ? (
+                <div className="mb-3 flex items-center gap-1">
+                    <input
+                        autoFocus
+                        value={newChecklistTitle}
+                        placeholder="New checklist title"
+                        onChange={(event) =>
+                            setNewChecklistTitle(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") commitNewChecklist();
+                            if (event.key === "Escape") cancelNewChecklist();
+                        }}
+                        className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-[14px] text-gray-900 focus:border-gray-500 focus:outline-none"
+                    />
+                    <button
+                        type="button"
+                        onClick={commitNewChecklist}
+                        aria-label="Save new checklist"
+                        className="p-1 text-gray-500 transition-colors hover:text-green-600"
+                    >
+                        <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={cancelNewChecklist}
+                        aria-label="Cancel new checklist"
+                        className="p-1 text-gray-500 transition-colors hover:text-gray-900"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
             ) : null}
 
             <div className="flex-1 space-y-4 overflow-y-auto pr-1">
@@ -116,18 +159,18 @@ export default function ChecklistWidget({
                                     addChecklistItem(patientId, checklist, text)
                                 )
                             }
-                            onRename={(title) =>
+                            onEditDetails={(details) =>
                                 run(() =>
                                     updateChecklistDetails(
                                         patientId,
                                         checklist.id,
-                                        { title }
+                                        details
                                     )
                                 )
                             }
-                            onDelete={() =>
+                            onArchive={() =>
                                 run(() =>
-                                    deleteChecklist(patientId, checklist.id)
+                                    archiveChecklist(patientId, checklist.id)
                                 )
                             }
                         />
