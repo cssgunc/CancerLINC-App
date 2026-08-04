@@ -11,6 +11,7 @@ import {
 import { useAuth } from "~/services/firebase_provider";
 import NotificationBell from "~/components/NotificationBell";
 import UnverifiedIndicator from "~/components/UnverifiedIndicator";
+import { NotificationsProvider } from "~/services/notifications_provider";
 import { isSuperuser } from "~/services/staff_admin_service";
 
 const SEARCH_HINTS = [
@@ -19,7 +20,17 @@ const SEARCH_HINTS = [
     "Search for social worker..",
 ];
 
+// The provider owns the one notification listener shared by the bell and the
+// browser-tab alert, so it has to sit above the layout that renders the bell.
 export default function AppLayout() {
+    return (
+        <NotificationsProvider>
+            <AppLayoutContent />
+        </NotificationsProvider>
+    );
+}
+
+function AppLayoutContent() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();

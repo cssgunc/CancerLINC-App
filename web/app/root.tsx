@@ -9,9 +9,15 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { BASE_TITLE } from "./hooks/useTabAlert";
 import { AuthProvider } from "./services/firebase_provider";
 
+export const meta: Route.MetaFunction = () => [{ title: BASE_TITLE }];
+
 export const links: Route.LinksFunction = () => [
+    // Declared explicitly (rather than relying on the implicit /favicon.ico
+    // lookup) so the tab-alert badge has an element to repoint.
+    { rel: "icon", href: "/favicon.ico" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     {
         rel: "preconnect",
