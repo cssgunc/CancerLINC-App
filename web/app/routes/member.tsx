@@ -766,7 +766,7 @@ export default function MemberPage() {
                                 </p>
                                 <p className="text-sm text-[#4B5563]">
                                     {chatUserProfile?.assignedSocialWorkerName ||
-                                        "No social worker assigned"}{" "}
+                                        "All of Client Services"}{" "}
                                     · {statusLabel(selectedStatus)}
                                 </p>
                             </div>
@@ -805,7 +805,7 @@ export default function MemberPage() {
                                         disabled={isSavingAssignment}
                                     >
                                         <option value="">
-                                            Select social worker
+                                            All of Client Services
                                         </option>
                                         {currentUserProfile?.uid &&
                                         !socialWorkers.some(
