@@ -203,12 +203,15 @@ service cloud.firestore {
     }
 
     match /checklists/{uid}/user_checklists/{docId} {
-      allow read: if isCurrentUser(uid);
-      allow create: if isCurrentUser(uid) &&
+      allow read: if isCurrentUser(uid) || isStaff();
+      allow create: if (isCurrentUser(uid) || isStaff()) &&
         hasValidChecklistShape(uid) &&
         hasValidChecklistCreateTimestamps();
-      allow update: if isChecklistOwnerOnlyUpdate(uid);
-      allow delete: if false;
+      allow update: if isChecklistOwnerOnlyUpdate(uid) ||
+        (isStaff() &&
+          hasValidChecklistShape(uid) &&
+          hasValidChecklistUpdateTimestamps());
+      allow delete: if isStaff();
     }
 
     match /referrals/{patientId}/referrals/{docId} {
@@ -224,11 +227,6 @@ service cloud.firestore {
       // console's add/edit/delete form, which writes client-side.
       allow read: if signedIn();
       allow create, update, delete: if isStaff();
-    }
-
-    match /events/{eventId} {
-      allow read: if signedIn();
-      allow create, update, delete: if false;
     }
 
     match /{document=**} {
