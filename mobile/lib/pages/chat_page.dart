@@ -10,6 +10,7 @@ import 'package:cancerlinc/services/chat_service.dart';
 import 'package:cancerlinc/services/notification_service.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:cancerlinc/components/search_panel.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 /// FEATURE FLAG (Ticket M4) — show a non-blocking "pending verification"
 /// notice to socially-unverified (non-banned) patients. They can STILL chat;
@@ -959,7 +960,12 @@ class _InputButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap == null
+          ? null
+          : () {
+              AppHaptics.tap();
+              onTap!();
+            },
       child: Container(
         width: 48,
         height: 48,

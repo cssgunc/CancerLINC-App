@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class ChangePasswordPage extends StatefulWidget {
 	final String code; // verification code passed from forgot_password.dart
@@ -39,6 +40,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 	void _onSubmit() {
 		// require that the incoming verification code is not empty
 		if (widget.code.isEmpty) {
+      AppHaptics.warning();
 			// shouldn't happen if caller passed a code, but guard anyway
 			showDialog<void>(
 				context: context,
@@ -57,6 +59,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 		}
 
 		if (_formKey.currentState?.validate() ?? false) {
+      AppHaptics.confirm();
 			// at this point we'd call the backend to change the password using
 			// the verification code (widget.code) and the new password.
 			// for this model, just show a confirmation and pop to login

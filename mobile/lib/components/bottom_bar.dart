@@ -6,6 +6,7 @@ import 'package:cancerlinc/pages/checklist_page.dart';
 import 'package:cancerlinc/pages/home_page.dart';
 import 'package:cancerlinc/pages/login_page.dart';
 import 'package:cancerlinc/pages/referrals_page.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class BottomBar extends StatefulWidget {
   const BottomBar({super.key});
@@ -48,6 +49,7 @@ class BottomBarState extends State<BottomBar> {
           ),
           TextButton(
             onPressed: () {
+              AppHaptics.warning();
               Navigator.pop(context);
               setState(() {
                 _checklistHasUnsavedChanges = false;
@@ -59,6 +61,7 @@ class BottomBarState extends State<BottomBar> {
           ),
           TextButton(
             onPressed: () async {
+              AppHaptics.confirm();
               Navigator.pop(context);
               await _checklistKey.currentState?.save();
               setState(() {
@@ -74,6 +77,7 @@ class BottomBarState extends State<BottomBar> {
   }
 
   Future<void> _logout() async {
+    AppHaptics.warning();
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

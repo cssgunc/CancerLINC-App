@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:cancerlinc/models/event.dart';
 import 'package:cancerlinc/services/event_service.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 // ─── Design tokens (match checklist page) ──────────────────────────────────────
 const _dark = Color(0xFF3F454F);
@@ -227,13 +228,19 @@ class _CalendarHeader extends StatelessWidget {
                     ? 'Filter'
                     : 'Filter (${selectedTags.length})',
                 icon: Icons.filter_list,
-                onPressed: () => _showFilterSheet(context),
+                onPressed: () {
+                  AppHaptics.tap();
+                  _showFilterSheet(context);
+                },
               ),
               const SizedBox(width: 8),
               _GreenButton(
                 label: 'Pick Date',
                 icon: Icons.calendar_today_outlined,
-                onPressed: () => _showCalendarPicker(context),
+                onPressed: () {
+                  AppHaptics.tap();
+                  _showCalendarPicker(context);
+                },
               ),
             ],
           ),
@@ -313,6 +320,7 @@ class _CalendarHeader extends StatelessWidget {
                             backgroundColor: _green,
                           ),
                           onPressed: () {
+                            AppHaptics.confirm();
                             onFilterChanged(tempSelected);
                             Navigator.pop(context);
                           },
@@ -545,7 +553,10 @@ class _EventCard extends StatelessWidget {
                       backgroundColor: _green,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      AppHaptics.tap();
+                      Navigator.pop(context);
+                    },
                     child: Text('Close', style: _bold(15)),
                   ),
                 ),
