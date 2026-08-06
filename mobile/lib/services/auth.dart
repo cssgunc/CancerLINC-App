@@ -9,16 +9,10 @@ class AuthService {
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   Future<UserCredential> signIn(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(
+    return _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
-    final user = credential.user;
-    if (user?.emailVerified == true) {
-      await _mirrorEmailVerification(user!);
-    }
-
-    return credential;
   }
 
   Future<UserCredential> register(
@@ -69,13 +63,5 @@ class AuthService {
 
   Future<void> sendEmailVerification() async {
     await _auth.currentUser?.sendEmailVerification();
-  }
-
-  Future<void> _mirrorEmailVerification(User user) async {
-    await user.getIdToken(true);
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'isVerified': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
   }
 }
