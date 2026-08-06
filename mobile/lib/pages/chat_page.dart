@@ -146,10 +146,9 @@ class _ChatPageState extends State<ChatPage> {
               children: [
                 const Text(
                   '$socialWorkerHours Messages sent outside those hours will '
-                  'be answered the next working day. If this is urgent, call ',
+                  'be answered the next working day. If this is urgent, call using the button above.',
                   style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
                 ),
-                CallButton(phoneNumber: cancerLincSupportPhone),
               ],
             ),
           ),
