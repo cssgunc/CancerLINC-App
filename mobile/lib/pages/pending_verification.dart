@@ -123,7 +123,7 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
                 Icon(
                   isDenied ? Icons.info_outline : Icons.schedule,
                   size: 56,
-                  color: const Color(0xFF43474F),
+                  color: const Color(0xada1cd3a),
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -167,7 +167,7 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
                       width: double.infinity,
                       height: 46,
                       child: OutlinedButton(
-                        onPressed: _checking ? null : _refreshStatus,
+                        onPressed: _checking ? null : _signOut,
                         style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(6),
@@ -185,7 +185,7 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
                                 ),
                               )
                             : const Text(
-                                'CHECK AGAIN',
+                                'RETURN TO LOGIN',
                                 style: TextStyle(color: Color(0xFF43474F)),
                               ),
                       ),
@@ -196,9 +196,9 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton(
-                    onPressed: _checking ? null : _signOut,
+                    onPressed: _checking ? null : _refreshStatus,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF43474F),
+                      backgroundColor: const Color(0xF0a1cd3a),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -206,7 +206,7 @@ class _PendingVerificationScreenState extends State<PendingVerificationScreen> {
                       splashFactory: InkRipple.splashFactory,
                     ),
                     child: const Text(
-                      'RETURN TO LOGIN',
+                      'CHECK AGAIN',
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
