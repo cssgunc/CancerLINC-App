@@ -10,6 +10,7 @@ import 'package:cancerlinc/services/chat_service.dart';
 import 'package:cancerlinc/services/notification_service.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:cancerlinc/components/search_panel.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 /// FEATURE FLAG — show the Social Worker availability notice at the top of
 /// the chat. Set to `false` to hide it; to remove the feature entirely delete
@@ -961,7 +962,12 @@ class _InputButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap == null
+          ? null
+          : () {
+              AppHaptics.tap();
+              onTap!();
+            },
       child: Container(
         width: 48,
         height: 48,

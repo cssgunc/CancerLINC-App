@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/auth_gate.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class VerifyEmail extends StatefulWidget {
   final String email;
@@ -146,8 +147,11 @@ class _VerifyEmailState extends State<VerifyEmail> {
                     width: double.infinity,
                     height: 46,
                     child: OutlinedButton(
-                      onPressed: () =>
-                          FirebaseAuth.instance.currentUser?.sendEmailVerification(),
+                      onPressed: () {
+                        AppHaptics.tap();
+                        FirebaseAuth.instance.currentUser
+                            ?.sendEmailVerification();
+                      },
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         overlayColor: Colors.black,
@@ -162,7 +166,10 @@ class _VerifyEmailState extends State<VerifyEmail> {
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  onPressed: () {
+                    AppHaptics.tap();
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFA1CD3A),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),

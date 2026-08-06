@@ -248,34 +248,36 @@ export const onAuthUserCreated = functions.auth.user().onCreate(async (user) => 
   const firstName = fallbackNameParts.firstName;
   const lastName = fallbackNameParts.lastName;
   const docRef = firestore.collection("users").doc(user.uid);
-  const snapshot = await docRef.get();
-
-  if (!snapshot.exists) {
-    await docRef.set({
-      uid: user.uid,
-      email: user.email ?? "",
-      firstName,
-      lastName,
-      lastNameLower: lastName.toLowerCase(),
-      assignedSocialWorkerId: "",
-      assignedSocialWorkerName: "",
-      hospital: "",
-      phoneNumber: "",
-      profilePhotoUrl: user.photoURL ?? "",
-      role: "patient",
-      status: "follow-up",
-      // New patients start unapproved and stay gated out of the app until
-      // client services accepts them in the staff console. This is approval
-      // state, NOT email verification — see firestore.rules users/{uid}.
-      // Only runs when the doc doesn't already exist, so patients created
-      // before this gate keep whatever isVerified they already had.
-      isVerified: false,
-      isBanned: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastContactTimestamp: serverTimestamp(),
-    });
-  }
+  // Mobile signup can write a phoneNumber-only doc before this trigger runs
+  // (auth.dart fires its own client-side set right after account creation).
+  // Merge instead of gating on snapshot.exists so that race doesn't cost the
+  // patient their phone number, and preserve createdAt if it's already there.
+  const existing = (await docRef.get()).data() ?? {};
+  await docRef.set({
+    uid: user.uid,
+    email: user.email ?? "",
+    firstName,
+    lastName,
+    lastNameLower: lastName.toLowerCase(),
+    assignedSocialWorkerId: "",
+    assignedSocialWorkerName: "",
+    hospital: "",
+    phoneNumber: existing.phoneNumber ?? "",
+    profilePhotoUrl: user.photoURL ?? "",
+    role: "patient",
+    status: "follow-up",
+    // New patients start unapproved and stay gated out of the app until
+    // client services accepts them in the staff console. This is approval
+    // state, NOT email verification — see firestore.rules users/{uid}. Not
+    // user.emailVerified: that previously let any patient approve themselves
+    // just by clicking the verification link. Preserve isVerified if a doc
+    // already exists so re-running this trigger can't downgrade a patient.
+    isVerified: existing.isVerified ?? false,
+    isBanned: existing.isBanned ?? false,
+    createdAt: existing.createdAt ?? serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lastContactTimestamp: serverTimestamp(),
+  }, {merge: true});
 
   await ensureDefaultChecklists(user.uid);
 });

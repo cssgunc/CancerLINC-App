@@ -13,6 +13,8 @@ import {
     X,
 } from "lucide-react";
 import { useParams } from "react-router";
+import ChecklistWidget from "~/components/ChecklistWidget";
+import CollapsibleSection from "~/components/CollapsibleSection";
 import ReferralCard from "~/components/ReferralCard";
 import ReferralFormDialog from "~/components/ReferralFormDialog";
 import {
@@ -929,24 +931,22 @@ export default function MemberPage() {
                 </section>
 
                 <div className="flex flex-1 items-stretch justify-center gap-6 min-h-0">
-                    {/* Referrals column */}
-                    <div className="flex w-[25vw] min-w-[260px] flex-col">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                            <h2 className="text-[24px] font-semibold leading-tight text-black">
-                                {chatUserFirstName}&apos;s Referrals
-                            </h2>
-                            <button
-                                className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
-                                onClick={() => {
-                                    setEditingReferral(null);
-                                    setReferralDialogMode("add");
-                                }}
-                            >
-                                + Add
-                            </button>
-                        </div>
-
-                        <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
+                    {/* Referrals + checklists column */}
+                    <div className="flex w-[25vw] min-w-[260px] flex-col gap-4 overflow-y-auto">
+                        <CollapsibleSection
+                            title={`${chatUserFirstName}'s Referrals`}
+                            actions={
+                                <button
+                                    className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
+                                    onClick={() => {
+                                        setEditingReferral(null);
+                                        setReferralDialogMode("add");
+                                    }}
+                                >
+                                    + Add
+                                </button>
+                            }
+                        >
                             <div className="flex-1 space-y-4 overflow-y-auto pr-1">
                                 {referrals.length === 0 ? (
                                     <p className="text-sm text-gray-500">
@@ -968,7 +968,12 @@ export default function MemberPage() {
                                     ))
                                 )}
                             </div>
-                        </section>
+                        </CollapsibleSection>
+
+                        <ChecklistWidget
+                            patientId={userId}
+                            patientFirstName={chatUserFirstName}
+                        />
                     </div>
 
                     {/* Chat column */}

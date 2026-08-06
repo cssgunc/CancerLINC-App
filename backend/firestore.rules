@@ -10,19 +10,40 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function chatDoc(chatId) {
-      return get(/databases/$(database)/documents/chats/$(chatId));
+    // Roles live on the user document rather than in custom claims, so every
+    // staff check costs a document read. get() inside rules is not itself
+    // subject to rules, so this does not recurse. The exists() guard keeps a
+    // signed-in user whose doc has not been created yet from erroring out.
+    function requesterRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : '';
     }
 
+    // Staff = social workers and admins, which carry the same privileges here.
+    function isStaff() {
+      return signedIn() && requesterRole() in ['social_worker', 'admin'];
+    }
+
+    function chatPath(chatId) {
+      return /databases/$(database)/documents/chats/$(chatId);
+    }
+
+    // Guarded with exists() because a chat doc may not have been created yet
+    // (createUserChat runs lazily); dereferencing a missing doc errors the
+    // whole rule out rather than evaluating to false.
     function isChatParticipant(chatId) {
-      let chat = chatDoc(chatId);
       return signedIn() &&
-        chat.data.participants is list &&
-        request.auth.uid in chat.data.participants;
+        exists(chatPath(chatId)) &&
+        get(chatPath(chatId)).data.participants is list &&
+        request.auth.uid in get(chatPath(chatId)).data.participants;
     }
 
+    // Ordered so the common cases short-circuit before any get(): the patient
+    // owns the chat at their own uid, and staff need a role lookup either way.
+    // The participants check only runs for staff not listed on the chat.
     function isOwnChatOrParticipant(chatId) {
-      return isCurrentUser(chatId) || isChatParticipant(chatId);
+      return isCurrentUser(chatId) || isStaff() || isChatParticipant(chatId);
     }
 
     function isFcmTokenOnlyUpdate() {
@@ -31,12 +52,58 @@ service cloud.firestore {
         request.resource.data.fcmToken is string;
     }
 
+    // Mobile signup writes the phone number onto the doc the auth onCreate
+    // trigger seeds. Narrow to that one field so this cannot be used to touch
+    // role, isVerified, or assignment.
+    function isOwnPhoneNumberUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['phoneNumber', 'updatedAt']) &&
+        request.resource.data.phoneNumber is string;
+    }
+
+    // Mobile's signup write can land before the onAuthUserCreated trigger
+    // seeds the doc, which makes it a create instead of an update. Allow
+    // only that same narrow shape; onAuthUserCreated merges in role,
+    // isVerified, etc. afterward and preserves this phoneNumber.
+    function isOwnPhoneNumberCreate() {
+      return request.resource.data.keys().hasOnly(['phoneNumber', 'updatedAt']) &&
+        request.resource.data.phoneNumber is string;
+    }
+
+    // Fields staff may change on a patient's user doc (assignment, status,
+    // verification). Scoped so staff can't rewrite arbitrary account fields.
+    // lastContactTimestamp is included because the web console stamps it on
+    // the patient doc as part of the send-message batch.
+    function isStaffUserUpdate() {
+      return isStaff() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'assignedSocialWorkerId',
+          'assignedSocialWorkerName',
+          'status',
+          'isVerified',
+          'isBanned',
+          'lastContactTimestamp',
+          'updatedAt',
+        ]);
+    }
+
     // NOTE: `isVerified` means "approved by CancerLINC client services" and is
     // the flag that gates app access. It is written ONLY by staff (the web
-    // console's accept/reject actions) and by admin Cloud Functions — never by
-    // the patient. Email verification is tracked separately by Firebase Auth's
-    // own `emailVerified` token claim and is deliberately NOT mirrored here;
-    // allowing that self-write previously let any patient approve themselves.
+    // console's accept/reject actions, via isStaffUserUpdate) and by admin
+    // Cloud Functions — never by the patient. Email verification is tracked
+    // separately by Firebase Auth's own `emailVerified` token claim and is
+    // deliberately NOT mirrored here; allowing that self-write previously let
+    // any patient approve themselves.
+
+    function chatSummaryKeys() {
+      return [
+        'chatId',
+        'participants',
+        'lastMessage',
+        'lastMessageTimestamp',
+        'lastMessageBatchId',
+      ];
+    }
 
     function checklistAllowedKeys() {
       return [
@@ -90,38 +157,76 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isCurrentUser(uid);
-      allow create, delete: if false;
-      allow update: if isCurrentUser(uid) && isFcmTokenOnlyUpdate();
+      // Users read their own doc. Staff read across the collection: the
+      // dashboard, notification feed, and assignment picker all query it.
+      // Not narrowed by role — the staff admin page and the assignment picker
+      // both query `role in ['social_worker', 'admin']`, and a per-document
+      // role condition would make Firestore reject those list queries
+      // outright. social_worker and admin are equivalent here anyway.
+      allow read: if isCurrentUser(uid) || isStaff();
+      // Docs are seeded by the onAuthUserCreated trigger and staff accounts by
+      // the createStaffAccount callable, both on admin credentials. The one
+      // exception is the mobile signup race above, narrowed to phoneNumber so
+      // a client still can't self-issue role: 'admin' or isVerified: true.
+      allow create: if isCurrentUser(uid) && isOwnPhoneNumberCreate();
+      allow delete: if false;
+      allow update: if (isCurrentUser(uid) &&
+          (isFcmTokenOnlyUpdate() || isOwnPhoneNumberUpdate())) ||
+        isStaffUserUpdate();
     }
 
     match /chats/{chatId} {
       allow read: if isOwnChatOrParticipant(chatId);
-      allow create, update, delete: if false;
+      // The web console writes the chat summary as it sends. Patients go
+      // through the sendChatMessage callable, which runs with admin
+      // credentials and bypasses these rules entirely.
+      allow create: if isStaff() &&
+        request.resource.data.keys().hasOnly(chatSummaryKeys());
+      allow update: if isStaff() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(chatSummaryKeys());
+      allow delete: if false;
 
       match /messages/{messageId} {
         allow read: if isOwnChatOrParticipant(chatId);
-        allow create, update, delete: if false;
+        allow create: if isStaff() &&
+          request.resource.data.senderId == request.auth.uid;
+        // Read receipts only: both sides flip isRead on messages they did not
+        // send. Nothing else about a sent message is editable.
+        allow update: if isOwnChatOrParticipant(chatId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isRead']) &&
+          request.resource.data.isRead == true &&
+          resource.data.senderId != request.auth.uid;
+        allow delete: if false;
       }
     }
 
     match /checklists/{uid}/user_checklists/{docId} {
-      allow read: if isCurrentUser(uid);
-      allow create: if isCurrentUser(uid) &&
+      allow read: if isCurrentUser(uid) || isStaff();
+      allow create: if (isCurrentUser(uid) || isStaff()) &&
         hasValidChecklistShape(uid) &&
         hasValidChecklistCreateTimestamps();
-      allow update: if isChecklistOwnerOnlyUpdate(uid);
-      allow delete: if false;
+      allow update: if isChecklistOwnerOnlyUpdate(uid) ||
+        (isStaff() &&
+          hasValidChecklistShape(uid) &&
+          hasValidChecklistUpdateTimestamps());
+      allow delete: if isStaff();
     }
 
     match /referrals/{patientId}/referrals/{docId} {
-      allow read: if isCurrentUser(patientId);
-      allow create, update, delete: if false;
+      allow read: if isCurrentUser(patientId) || isStaff();
+      // Referrals are managed by staff from the member dashboard (create/edit,
+      // plus soft-delete via an isDeleted update). Hard deletes stay blocked.
+      allow create, update: if isStaff();
+      allow delete: if false;
     }
 
     match /events/{eventId} {
+      // Every signed-in user sees the calendar; staff manage it from the web
+      // console's add/edit/delete form, which writes client-side.
       allow read: if signedIn();
-      allow create, update, delete: if false;
+      allow create, update, delete: if isStaff();
     }
 
     match /{document=**} {

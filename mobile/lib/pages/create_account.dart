@@ -3,6 +3,7 @@ import 'package:cancerlinc/services/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({super.key});
@@ -111,6 +112,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         );
       }
     } on FirebaseAuthException catch (e) {
+      AppHaptics.warning();
       setState(() {
         _errorMessage = _getFirebaseError(e);
       });
@@ -357,7 +359,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _onSignUp,
+                        onPressed: () {
+                          AppHaptics.confirm();
+                          _onSignUp();
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF43474F),
                           shape: RoundedRectangleBorder(
