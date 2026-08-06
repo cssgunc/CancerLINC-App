@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ChevronLeft,
     ChevronRight,
@@ -9,6 +9,10 @@ import {
     Calendar,
     MapPin,
     Video,
+    Download,
+    Copy,
+    Check,
+    ChevronDown,
 } from "lucide-react";
 import {
     collection,
@@ -21,7 +25,13 @@ import {
     query,
     orderBy,
 } from "firebase/firestore";
-import { db } from "~/firebase";
+import { db } from "~/services/firebase_app";
+
+// Public ICS feed served by the `calendarIcs` Cloud Function. Calendar apps
+// (Google, Apple, WordPress) can subscribe to this URL for a live feed.
+const ICS_FEED_URL = `https://us-central1-${
+    import.meta.env.VITE_FIREBASE_PROJECT_ID
+}.cloudfunctions.net/calendarIcs`;
 
 // types
 interface CalendarEvent {
@@ -124,6 +134,24 @@ export default function CalendarPage() {
     const [editTarget, setEditTarget] = useState<CalendarEvent | null>(null);
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
+    const [exportOpen, setExportOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const exportRef = useRef<HTMLDivElement>(null);
+
+    // Close the export menu when clicking outside of it.
+    useEffect(() => {
+        if (!exportOpen) return;
+        function onClick(e: MouseEvent) {
+            if (
+                exportRef.current &&
+                !exportRef.current.contains(e.target as Node)
+            ) {
+                setExportOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", onClick);
+        return () => document.removeEventListener("mousedown", onClick);
+    }, [exportOpen]);
 
     //Firestore real-time listener
     useEffect(() => {
@@ -245,6 +273,43 @@ export default function CalendarPage() {
         }
     }
 
+    // Fetch the live ICS feed and save it as a file. We download via a blob so
+    // the browser honors the .ics filename even though the feed is cross-origin.
+    async function downloadIcs() {
+        setExportOpen(false);
+        try {
+            const res = await fetch(ICS_FEED_URL);
+            if (!res.ok) throw new Error(`Feed returned ${res.status}`);
+            const text = await res.text();
+            const url = URL.createObjectURL(
+                new Blob([text], { type: "text/calendar" })
+            );
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "cancerlinc-events.ics";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            setError(
+                e instanceof Error
+                    ? `Could not download calendar: ${e.message}`
+                    : "Could not download calendar"
+            );
+        }
+    }
+
+    async function copyFeedLink() {
+        try {
+            await navigator.clipboard.writeText(ICS_FEED_URL);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setError("Could not copy link to clipboard");
+        }
+    }
+
     function toggleTag(tag: string) {
         setForm((f) => ({
             ...f,
@@ -267,13 +332,63 @@ export default function CalendarPage() {
                             Schedule and manage community events for patients.
                         </p>
                     </div>
-                    <button
-                        onClick={() => openAdd(selectedDay ?? undefined)}
-                        className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Add Event
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <div className="relative" ref={exportRef}>
+                            <button
+                                onClick={() => setExportOpen((o) => !o)}
+                                className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                            >
+                                <Download className="size-4" />
+                                Export
+                                <ChevronDown className="size-4 text-gray-400" />
+                            </button>
+                            {exportOpen && (
+                                <div className="absolute right-0 z-10 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                                    <button
+                                        onClick={downloadIcs}
+                                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                        <Download className="size-4 text-gray-400" />
+                                        <span>
+                                            <span className="block font-medium">
+                                                Download .ics file
+                                            </span>
+                                            <span className="block text-xs text-gray-500">
+                                                Import into any calendar app
+                                            </span>
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={copyFeedLink}
+                                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                        {copied ? (
+                                            <Check className="size-4 text-green-600" />
+                                        ) : (
+                                            <Copy className="size-4 text-gray-400" />
+                                        )}
+                                        <span>
+                                            <span className="block font-medium">
+                                                {copied
+                                                    ? "Link copied!"
+                                                    : "Copy shareable link"}
+                                            </span>
+                                            <span className="block text-xs text-gray-500">
+                                                Live feed that stays up to date
+                                            </span>
+                                        </span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => openAdd(selectedDay ?? undefined)}
+                            className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white shadow hover:bg-gray-800"
+                        >
+                            <Plus className="size-4" />
+                            Add Event
+                        </button>
+                    </div>
                 </div>
 
                 {error && (
@@ -397,13 +512,13 @@ export default function CalendarPage() {
                                             className="rounded-lg bg-black p-1.5 text-white hover:bg-gray-800"
                                             title="Add event"
                                         >
-                                            <Plus className="h-4 w-4" />
+                                            <Plus className="size-4" />
                                         </button>
                                         <button
                                             onClick={() => setSelectedDay(null)}
                                             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"
                                         >
-                                            <X className="h-4 w-4" />
+                                            <X className="size-4" />
                                         </button>
                                     </div>
                                 </div>
