@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Bell } from "lucide-react";
 import { useNavigate } from "react-router";
-import {
-    useNotifications,
-    type NotificationItem,
-    type NotificationTier,
+import type {
+    NotificationItem,
+    NotificationTier,
 } from "~/hooks/useNotifications";
+import { useNotificationFeed } from "~/services/notifications_provider";
 import { statusLabel, statusStyles } from "~/types/status";
 
 const TIER_ACCENT: Record<NotificationTier, string> = {
@@ -23,7 +23,7 @@ const BADGE_COLOR: Record<"red" | "yellow" | "gray", string> = {
 
 export default function NotificationBell() {
     const navigate = useNavigate();
-    const { items, loading, badgeColor } = useNotifications();
+    const { items, loading, badgeColor } = useNotificationFeed();
     const [open, setOpen] = useState(false);
 
     const count = items.length;
