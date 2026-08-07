@@ -16,8 +16,11 @@ export const meta: Route.MetaFunction = () => [{ title: BASE_TITLE }];
 
 export const links: Route.LinksFunction = () => [
     // Declared explicitly (rather than relying on the implicit /favicon.ico
-    // lookup) so the tab-alert badge has an element to repoint.
-    { rel: "icon", href: "/favicon.ico" },
+    // lookup) so the tab-alert badge has an element to repoint. PNG rather
+    // than .ico because the badge redraws it through a canvas, and .ico
+    // decoding in an <img> is the unreliable path.
+    { rel: "icon", type: "image/png", href: "/favicon-32.png" },
+    { rel: "apple-touch-icon", href: "/favicon-180.png" },
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     {
         rel: "preconnect",

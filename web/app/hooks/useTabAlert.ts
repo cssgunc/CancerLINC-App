@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { clearFaviconBadge, setFaviconBadge } from "~/utils/favicon_badge";
 
 /** Tab name when nothing needs attention. Mirrors the `meta()` in root.tsx. */
-export const BASE_TITLE = "CancerLINC";
+export const BASE_TITLE = "CancerLINC Admin";
 
 /**
  * Mirrors the pending-notification count into the browser tab, Gmail-style:

@@ -5,7 +5,7 @@
 // the caller's document.title change is still the primary signal, so we fail
 // silently rather than surfacing an error.
 
-const ICON_HREF = "/favicon.ico";
+const ICON_HREF = "/favicon-32.png";
 const SIZE = 32;
 
 let originalHref: string | null = null;
