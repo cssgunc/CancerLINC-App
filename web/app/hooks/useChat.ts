@@ -63,6 +63,9 @@ export function useChat(userId: string, currentUserName: string) {
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
+    const [lastExportedAtMs, setLastExportedAtMs] = useState<number | null>(
+        null
+    );
     const [senderProfiles, setSenderProfiles] = useState<
         Record<string, string>
     >({});
@@ -302,6 +305,41 @@ export function useChat(userId: string, currentUserName: string) {
     ]);
 
     useEffect(() => {
+        if (!chatId) {
+            setLastExportedAtMs(null);
+            return;
+        }
+
+        // lastTranscriptExportedAt is written exclusively by the
+        // recordTranscriptExport Cloud Function — chatSummaryKeys() in
+        // firestore.rules denies client writes to it, so this listener only
+        // ever reads the watermark, never sets it server-side itself.
+        const unsubscribe = onSnapshot(
+            doc(db, "chats", chatId),
+            (snapshot) => {
+                // A chat doc with no messages yet doesn't exist; that's not
+                // an error, it just means the transcript was never exported.
+                if (!snapshot.exists()) {
+                    setLastExportedAtMs(null);
+                    return;
+                }
+
+                const data = snapshot.data() as {
+                    lastTranscriptExportedAt?: Timestamp;
+                };
+                setLastExportedAtMs(
+                    data.lastTranscriptExportedAt?.toMillis() ?? null
+                );
+            },
+            () => {
+                setLastExportedAtMs(null);
+            }
+        );
+
+        return unsubscribe;
+    }, [chatId]);
+
+    useEffect(() => {
         if (!selectedImage) {
             setSelectedImagePreviewUrl("");
             return;
@@ -388,6 +426,8 @@ export function useChat(userId: string, currentUserName: string) {
         isLoadingMessages,
         isLoadingOlder,
         hasMoreMessages,
+        lastExportedAtMs,
+        setLastExportedAtMs,
         senderProfiles,
         messageContainerRef,
         fileInputRef,

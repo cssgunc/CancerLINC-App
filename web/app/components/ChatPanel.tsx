@@ -1,12 +1,18 @@
-import type { UIEvent } from "react";
+import { useState, type UIEvent } from "react";
+import { ClipboardCopy } from "lucide-react";
 import MessageBubble from "~/components/MessageBubble";
 import ChatComposer from "~/components/ChatComposer";
+import TranscriptExportDialog from "~/components/TranscriptExportDialog";
 import { useChat } from "~/hooks/useChat";
+import { formatTranscriptTimestamp } from "~/services/transcript_format";
 
 interface ChatPanelProps {
     userId: string;
     chatUserFullName: string;
     currentUserName: string;
+    patientEmail: string;
+    currentUserEmail: string;
+    currentUserId: string;
 }
 
 /** Chat column: heading, scrollable message list, and composer. */
@@ -14,7 +20,11 @@ export default function ChatPanel({
     userId,
     chatUserFullName,
     currentUserName,
+    patientEmail,
+    currentUserEmail,
+    currentUserId,
 }: ChatPanelProps) {
+    const [exportOpen, setExportOpen] = useState(false);
     const {
         messages,
         newMessage,
@@ -25,6 +35,8 @@ export default function ChatPanel({
         isSending,
         isLoadingMessages,
         isLoadingOlder,
+        lastExportedAtMs,
+        setLastExportedAtMs,
         senderProfiles,
         messageContainerRef,
         fileInputRef,
@@ -43,9 +55,24 @@ export default function ChatPanel({
 
     return (
         <div className="flex w-[50vw] min-w-[360px] max-w-[600px] flex-col">
-            <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
-                Chat with {chatUserFullName}
-            </h2>
+            <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[24px] font-semibold leading-tight text-black">
+                    Chat with {chatUserFullName}
+                </h2>
+                <button
+                    type="button"
+                    onClick={() => setExportOpen(true)}
+                    className="flex shrink-0 items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#333333]"
+                >
+                    <ClipboardCopy size={16} />
+                    Export transcript
+                </button>
+            </div>
+            <p className="mb-3 text-xs text-[#999999]">
+                {lastExportedAtMs
+                    ? `Last exported ${formatTranscriptTimestamp(lastExportedAtMs)}`
+                    : "Never exported"}
+            </p>
 
             <section className="flex flex-1 flex-col overflow-hidden bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.12)]">
                 <div
@@ -121,6 +148,18 @@ export default function ChatPanel({
                     sendMessage={sendMessage}
                 />
             </section>
+
+            <TranscriptExportDialog
+                open={exportOpen}
+                onOpenChange={setExportOpen}
+                chatId={userId}
+                patientName={chatUserFullName}
+                patientEmail={patientEmail}
+                currentUserEmail={currentUserEmail}
+                currentUserId={currentUserId}
+                lastExportedAtMs={lastExportedAtMs}
+                onExported={setLastExportedAtMs}
+            />
         </div>
     );
 }
