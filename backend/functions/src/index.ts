@@ -9,6 +9,7 @@ export {
   createUserChat,
   sendChatMessage,
   sendChatImageMessage,
+  deleteOwnAccount,
 } from "./patient";
 
 export {

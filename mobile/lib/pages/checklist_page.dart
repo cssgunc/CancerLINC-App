@@ -10,17 +10,17 @@ const _border = Color(0xFFD9D9D9);
 const _placeholder = Color(0xFF999999);
 
 BoxDecoration get _cardDecoration => BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(9),
-      border: Border.all(color: _border),
-      boxShadow: const [
-        BoxShadow(
-          color: Color.fromRGBO(0, 0, 0, 0.07),
-          blurRadius: 6,
-          offset: Offset(0, 2),
-        ),
-      ],
-    );
+  color: Colors.white,
+  borderRadius: BorderRadius.circular(9),
+  border: Border.all(color: _border),
+  boxShadow: const [
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.07),
+      blurRadius: 6,
+      offset: Offset(0, 2),
+    ),
+  ],
+);
 
 TextStyle _bold(double size, {Color color = _dark}) =>
     TextStyle(fontSize: size, fontWeight: FontWeight.bold, color: color);
@@ -39,7 +39,6 @@ class ChecklistPage extends StatefulWidget {
 }
 
 class ChecklistPageState extends State<ChecklistPage> {
-  
   final ChecklistService _checklistService = ChecklistService();
   bool showDeleteIcons = false;
   late CollectionReference _checklistsRef;
@@ -102,8 +101,9 @@ class ChecklistPageState extends State<ChecklistPage> {
 
   // ================= LOAD CHECKLISTS ================= (load in one shot instead of stream)
   Future<void> _loadChecklists() async {
-    final snapshot =
-        await _checklistsRef.where('archived', isEqualTo: false).get();
+    final snapshot = await _checklistsRef
+        .where('archived', isEqualTo: false)
+        .get();
 
     final loaded = snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
@@ -125,9 +125,12 @@ class ChecklistPageState extends State<ChecklistPage> {
     _notifyUnsavedChanges();
   }
 
-// ================= SAVE CHECKLISTS ================= (call new batch service)
+  // ================= SAVE CHECKLISTS ================= (call new batch service)
   Future<void> save() async {
-    final updatedChecklists = await _checklistService.saveChecklists(_checklistsRef, _localChecklists);
+    final updatedChecklists = await _checklistService.saveChecklists(
+      _checklistsRef,
+      _localChecklists,
+    );
     setState(() {
       // make deep copy to avoid reference issues where changing one changes the other
       _localChecklists = _deepCopy(updatedChecklists);
@@ -268,7 +271,8 @@ class ChecklistPageState extends State<ChecklistPage> {
     final i = _localIndexByDocId(docId);
     if (i != -1) {
       setState(() {
-        final items = _localChecklists[i]['items'] as List<Map<String, dynamic>>;
+        final items =
+            _localChecklists[i]['items'] as List<Map<String, dynamic>>;
         items[index]['checked'] = !(items[index]['checked'] as bool);
       });
       _notifyUnsavedChanges();
@@ -282,7 +286,9 @@ class ChecklistPageState extends State<ChecklistPage> {
       return const SafeArea(child: Center(child: CircularProgressIndicator()));
     }
 
-    final visible = _localChecklists.where((c) => c['archived'] == false).toList();
+    final visible = _localChecklists
+        .where((c) => c['archived'] == false)
+        .toList();
 
     return SafeArea(
       child: Column(
@@ -319,8 +325,10 @@ class ChecklistPageState extends State<ChecklistPage> {
                             ),
                           ),
                           showDeleteIcon: showDeleteIcons,
-                          onDelete: () =>
-                              _confirmDeleteChecklist(docId, checklist['title']),
+                          onDelete: () => _confirmDeleteChecklist(
+                            docId,
+                            checklist['title'],
+                          ),
                           onAddItem: () => _showAddItemDialog(docId),
                           onDeleteItem: (i) => _deleteItem(docId, i),
                           onToggleItem: (i) => _toggleItem(docId, i),
@@ -445,8 +453,10 @@ class _StyledTextField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: _regular(15, color: _placeholder),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -481,7 +491,7 @@ class ChecklistCard extends StatefulWidget {
     this.showDeleteIcon = false,
   });
 
-    @override
+  @override
   State<ChecklistCard> createState() => _ChecklistCardState();
 }
 
@@ -542,14 +552,17 @@ class _ChecklistCardState extends State<ChecklistCard> {
                   Expanded(
                     child: Text(
                       widget.items[i].text,
-                      style: _regular(
-                        15,
-                        color: widget.items[i].checked ? _placeholder : _dark,
-                      ).copyWith(
-                        decoration: widget.items[i].checked
-                            ? TextDecoration.lineThrough
-                            : null,
-                      ),
+                      style:
+                          _regular(
+                            15,
+                            color: widget.items[i].checked
+                                ? _placeholder
+                                : _dark,
+                          ).copyWith(
+                            decoration: widget.items[i].checked
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
                     ),
                   ),
                   if (_showDeleteItems)
@@ -557,7 +570,11 @@ class _ChecklistCardState extends State<ChecklistCard> {
                       onTap: () => widget.onDeleteItem?.call(i),
                       child: const Padding(
                         padding: EdgeInsets.only(left: 8),
-                        child: Icon(Icons.delete_outline, size: 18, color: _placeholder),
+                        child: Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: _placeholder,
+                        ),
                       ),
                     ),
                 ],
@@ -579,15 +596,18 @@ class _ChecklistCardState extends State<ChecklistCard> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     alignment: Alignment.center,
-                    child: Text('+ Add Items',
-                        style: _bold(15, color: Colors.white)),
+                    child: Text(
+                      '+ Add Items',
+                      style: _bold(15, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => _showDeleteItems = !_showDeleteItems), 
+                  onTap: () =>
+                      setState(() => _showDeleteItems = !_showDeleteItems),
                   child: Container(
                     height: 40,
                     decoration: BoxDecoration(
@@ -595,7 +615,10 @@ class _ChecklistCardState extends State<ChecklistCard> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     alignment: Alignment.center,
-                    child: Text('- Delete Items', style: _bold(15, color: Colors.white)),
+                    child: Text(
+                      '- Delete Items',
+                      style: _bold(15, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -629,10 +652,20 @@ class ArchivePage extends StatelessWidget {
         ),
       ),
       body: StreamBuilder<List<Checklist>>(
-        stream: checklistService.streamCurrentUserChecklists(
-          archived: true,
-        ),
+        stream: checklistService.streamCurrentUserChecklists(archived: true),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            // e.g. permission-denied once the checklists/{uid} doc and its
+            // subcollection are gone mid account-deletion. Fail quietly
+            // rather than leaving a spinner running forever.
+            return Center(
+              child: Text(
+                'Unable to load archived lists.',
+                style: _regular(16, color: _placeholder),
+              ),
+            );
+          }
+
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -664,11 +697,14 @@ class ArchivePage extends StatelessWidget {
                     children: [
                       Text(checklist.title, style: _regular(22)),
                       const SizedBox(height: 2),
-                      Text(checklist.subtitle,
-                          style: _regular(14, color: _placeholder)),
+                      Text(
+                        checklist.subtitle,
+                        style: _regular(14, color: _placeholder),
+                      ),
                       const SizedBox(height: 14),
                       GestureDetector(
-                        onTap: () => checklistService.duplicateChecklist(checklist),
+                        onTap: () =>
+                            checklistService.duplicateChecklist(checklist),
                         child: Container(
                           height: 40,
                           decoration: BoxDecoration(
@@ -676,8 +712,10 @@ class ArchivePage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           alignment: Alignment.center,
-                          child: Text('Duplicate List',
-                              style: _bold(15, color: Colors.white)),
+                          child: Text(
+                            'Duplicate List',
+                            style: _bold(15, color: Colors.white),
+                          ),
                         ),
                       ),
                     ],
