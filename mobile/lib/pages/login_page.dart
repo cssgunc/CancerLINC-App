@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/pages/forgot_password.dart';
 import 'package:cancerlinc/pages/create_account.dart';
-import 'package:cancerlinc/components/bottom_bar.dart';
+import 'package:cancerlinc/pages/auth_gate.dart';
+import 'package:cancerlinc/pages/verify_email.dart';
 import 'package:cancerlinc/services/auth.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class LoginPage extends StatefulWidget {
     const LoginPage({super.key});
@@ -185,23 +187,37 @@ class LoginPage extends StatefulWidget {
                   height: 46,
                   child: ElevatedButton(
                     onPressed: () async {
+                      AppHaptics.confirm();
                       try {
                         final userCredential = await _authService.signIn(
                           _emailController.text.trim(),
                           _passwordController.text.trim(),
                         );
                         if (userCredential.user?.emailVerified == false) {
-                          await _authService.signOut();
-                          if (mounted) setState(() => _errorMessage = 'Please verify your email before logging in.');
+                          if (mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VerifyEmail(
+                                  email: _emailController.text.trim(),
+                                  isSignup: true,
+                                ),
+                              ),
+                            );
+                          }
                           return;
                         }
                         if (mounted) {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const BottomBar()),
+                            // Route through AuthGate, not straight to
+                            // BottomBar: the client-services approval check
+                            // lives there and must not be bypassed.
+                            MaterialPageRoute(builder: (context) => const AuthGate()),
                           );
                         }
                       } on FirebaseAuthException {
+                        AppHaptics.warning();
                         setState(() {
                           _errorMessage = 'Incorrect Email or Password Entered';
                         });
@@ -230,6 +246,7 @@ class LoginPage extends StatefulWidget {
                   height: 46,
                   child: ElevatedButton(
                     onPressed: () {
+                      AppHaptics.tap();
                       Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => CreateAccountPage()),

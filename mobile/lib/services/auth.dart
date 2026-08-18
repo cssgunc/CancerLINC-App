@@ -10,16 +10,10 @@ class AuthService {
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   Future<UserCredential> signIn(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(
+    return _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
-    final user = credential.user;
-    if (user?.emailVerified == true) {
-      await _mirrorEmailVerification(user!);
-    }
-
-    return credential;
   }
 
   Future<UserCredential> register(

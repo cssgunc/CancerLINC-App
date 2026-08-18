@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cancerlinc/models/checklist.dart';
 import 'package:cancerlinc/services/checklist_service.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const _dark = Color(0xFF3F454F);
@@ -171,6 +172,7 @@ class ChecklistPageState extends State<ChecklistPage> {
           _DarkButton(
             label: 'Add',
             onPressed: () {
+              AppHaptics.confirm();
               final tempId = 'local_${DateTime.now().millisecondsSinceEpoch}';
               setState(() {
                 _localChecklists.add({
@@ -209,6 +211,7 @@ class ChecklistPageState extends State<ChecklistPage> {
           _DarkButton(
             label: 'Delete',
             onPressed: () {
+              AppHaptics.warning();
               final i = _localIndexByDocId(docId);
               if (i != -1) {
                 setState(() => _localChecklists[i]['archived'] = true);
@@ -241,6 +244,7 @@ class ChecklistPageState extends State<ChecklistPage> {
           _DarkButton(
             label: 'Add',
             onPressed: () {
+              AppHaptics.tap();
               final i = _localIndexByDocId(docId);
               if (i != -1) {
                 setState(() {
@@ -369,7 +373,12 @@ class ChecklistPageState extends State<ChecklistPage> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: canSave ? save : null,
+                onTap: canSave
+                    ? () {
+                        AppHaptics.confirm();
+                        save();
+                      }
+                    : null,
                 child: Container(
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -703,8 +712,10 @@ class ArchivePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       GestureDetector(
-                        onTap: () =>
-                            checklistService.duplicateChecklist(checklist),
+                        onTap: () {
+                          AppHaptics.tap();
+                          checklistService.duplicateChecklist(checklist);
+                        },
                         child: Container(
                           height: 40,
                           decoration: BoxDecoration(

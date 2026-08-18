@@ -15,6 +15,13 @@ body {
     }
 }
 
+button:not(:disabled),
+[type="button"]:not(:disabled),
+[type="submit"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+}
+
 .search-hint {
     position: absolute;
     left: 0;

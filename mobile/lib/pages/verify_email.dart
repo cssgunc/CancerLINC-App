@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cancerlinc/components/bottom_bar.dart';
+import 'package:cancerlinc/pages/auth_gate.dart';
+import 'package:cancerlinc/utils/haptics.dart';
 
 class VerifyEmail extends StatefulWidget {
   final String email;
@@ -30,14 +31,6 @@ class _VerifyEmailState extends State<VerifyEmail> {
     return false;
   }
 
-  Future<void> _mirrorEmailVerification(User user) async {
-    await user.getIdToken(true);
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'isVerified': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
   @override
   void initState() {
     super.initState();
@@ -45,16 +38,25 @@ class _VerifyEmailState extends State<VerifyEmail> {
       _timer = Timer.periodic(const Duration(seconds: 3), (_) async {
         if (_isCompletingSignup) return;
 
-        await FirebaseAuth.instance.currentUser?.reload();
+        try {
+          await FirebaseAuth.instance.currentUser?.reload();
+        } on FirebaseAuthException catch (e) {
+          debugPrint('reload() failed: ${e.code} ${e.message}');
+          return;
+        }
         final user = FirebaseAuth.instance.currentUser;
         if (user?.emailVerified == true) {
           _isCompletingSignup = true;
           _timer?.cancel();
+          // Wait for onAuthUserCreated to write users/{uid} so AuthGate can
+          // read the approval flag instead of briefly failing closed on a
+          // missing document.
           await _waitForUserDocument(user!.uid);
-          await _mirrorEmailVerification(user);
           if (mounted) {
+            // AuthGate, not BottomBar: a freshly email-verified patient still
+            // needs client-services approval before entering the app.
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const BottomBar()),
+              MaterialPageRoute(builder: (_) => const AuthGate()),
               (route) => false,
             );
           }
@@ -103,20 +105,34 @@ class _VerifyEmailState extends State<VerifyEmail> {
                     const SizedBox(height: 16),
                     Text(
                       widget.isSignup
-                          ? 'A verification link was sent to\n${widget.email}.\nClick the link in your inbox to continue.'
+                          ? 'A verification link was sent to\n${widget.email}.'
                           : 'Email sent. Please check your inbox\nto change your password.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 14, color: Colors.black54),
                     ),
                     if (widget.isSignup) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Can't find it? Check your spam or junk folder.",
+                      const SizedBox(height: 24),
+                      const Text.rich(
+                        TextSpan(
+                          text: "Can't find it? Check your ",
+                          children: [
+                            TextSpan(
+                              text: 'spam',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            TextSpan(text: ' or '),
+                            TextSpan(
+                              text: 'junk',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            TextSpan(text: ' folder.'),
+                          ],
+                        ),
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: Colors.black38),
                       ),
-                      const SizedBox(height: 12),
-                      const Text('Waiting for verification...', style: TextStyle(fontSize: 13, color: Colors.black38)),
+                      // const SizedBox(height: 12),
+                      // const Text('Waiting for verification...', style: TextStyle(fontSize: 13, color: Colors.black38)),
                     ],
                   ],
                 ),
@@ -131,8 +147,11 @@ class _VerifyEmailState extends State<VerifyEmail> {
                     width: double.infinity,
                     height: 46,
                     child: OutlinedButton(
-                      onPressed: () =>
-                          FirebaseAuth.instance.currentUser?.sendEmailVerification(),
+                      onPressed: () {
+                        AppHaptics.tap();
+                        FirebaseAuth.instance.currentUser
+                            ?.sendEmailVerification();
+                      },
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         overlayColor: Colors.black,
@@ -147,11 +166,14 @@ class _VerifyEmailState extends State<VerifyEmail> {
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                  onPressed: () {
+                    AppHaptics.tap();
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF43474F),
+                    backgroundColor: const Color(0xFFA1CD3A),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    overlayColor: Colors.white,
+                    // overlayColor: Colors.white,
                     splashFactory: InkRipple.splashFactory,
                   ),
                   child: const Text('RETURN TO LOGIN', style: TextStyle(color: Colors.white)),
