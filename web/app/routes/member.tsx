@@ -746,7 +746,7 @@ export default function MemberPage() {
 
     return (
         <div
-            className="flex h-full flex-col overflow-hidden px-4 pb-3 pt-5 text-black"
+            className="flex min-h-full flex-col px-4 pb-3 pt-5 text-black"
             style={{ fontFamily: "Inter, sans-serif" }}
         >
             <div className="mx-auto flex w-[84vw] max-w-[1400px] flex-1 flex-col min-h-0 pb-2">
@@ -930,7 +930,7 @@ export default function MemberPage() {
                     ) : null}
                 </section>
 
-                <div className="flex flex-1 items-stretch justify-center gap-6 min-h-0">
+                <div className="flex flex-1 items-stretch justify-center gap-6 min-h-[560px]">
                     {/* Referrals + checklists column */}
                     <div className="flex w-[25vw] min-w-[260px] flex-col gap-4 overflow-y-auto">
                         <CollapsibleSection

@@ -219,7 +219,7 @@ function AppLayoutContent() {
             <div
                 className={
                     onMemberPage
-                        ? "flex flex-1 flex-col overflow-hidden"
+                        ? "flex flex-1 flex-col overflow-y-auto"
                         : undefined
                 }
             >
