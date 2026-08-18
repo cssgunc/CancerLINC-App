@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cancerlinc/pages/calendar_page.dart';
@@ -22,7 +23,8 @@ class BottomBarState extends State<BottomBar> {
   static const _appBarBase = Colors.white;
   static const _appBarScrollTint = Color(0xFFF2F2F2);
   bool _checklistHasUnsavedChanges = false;
-  final GlobalKey<ChecklistPageState> _checklistKey = GlobalKey<ChecklistPageState>();
+  final GlobalKey<ChecklistPageState> _checklistKey =
+      GlobalKey<ChecklistPageState>();
 
   void _goToTab(int index) {
     final leavingChecklist = _currentIndex == 2 && index != 2;
@@ -76,6 +78,13 @@ class BottomBarState extends State<BottomBar> {
     );
   }
 
+  /// Shared post-auth-change navigation, used by both [_logout] and
+  /// [_deleteAccount]. BottomBar is reached via an imperative push (not
+  /// purely AuthGate's reactive StreamBuilder), so leaving it also has to
+  /// be imperative — clearing the route stack and pushing LoginPage, same
+  /// as the app already did for a normal logout.
+  Future<void> _navigateToLoginPage() {
+    return Navigator.of(context).pushAndRemoveUntil(
   Future<void> _logout() async {
     AppHaptics.warning();
     await FirebaseAuth.instance.signOut();
@@ -107,13 +116,78 @@ class BottomBarState extends State<BottomBar> {
     );
   }
 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    await _navigateToLoginPage();
+  }
+
+/// Permanently deletes the signed-in user's account.
+  ///
+  /// ORDER MATTERS: the `deleteOwnAccount` Cloud Function is called FIRST,
+  /// while the caller still holds a valid ID token — the function trusts
+  /// only `request.auth.uid`, never anything the client sends, so there is
+  /// no way to delete the wrong account. `signOut()` (a purely local
+  /// operation — it does not hit the network, so it cannot fail because
+  /// the account no longer exists server-side) only runs after the
+  /// function call succeeds, followed by the exact same navigation as
+  /// [_logout].
+  ///
+  /// If the function call throws, this rethrows so the caller (HomePage's
+  /// confirmation dialog) can show an error — the user stays signed in and
+  /// nothing is torn down, so they can safely retry.
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    debugPrint(
+      '[deleteAccount] preflight: hasUser=${user != null}, uid=${user?.uid}',
+    );
+
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'unauthenticated',
+        message: 'You must be signed in.',
+      );
+    }
+
+    // Force-refresh the token, same as ChatService does, so we're not
+    // sending a stale token to a security-sensitive callable.
+    final token = await user.getIdTokenResult(true);
+    debugPrint(
+      '[deleteAccount] token ready: uid=${user.uid}, '
+      'emailVerified=${user.emailVerified}, '
+      'issuedAt=${token.issuedAtTime}, expiresAt=${token.expirationTime}',
+    );
+
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'deleteOwnAccount',
+      );
+      debugPrint('[deleteAccount] calling deleteOwnAccount...');
+      final result = await callable.call();
+      debugPrint('[deleteAccount] callable success: ${result.data}');
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+        '[deleteAccount] callable FAILED: code=${e.code}, '
+        'message=${e.message}, details=${e.details}',
+      );
+      rethrow;
+    } catch (e) {
+      debugPrint('[deleteAccount] callable FAILED unexpectedly: $e');
+      rethrow;
+    }
+
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    await _navigateToLoginPage();
+  }
+
   late final List<Widget> _pages; // pages cannot be static due to callback
 
   @override
   void initState() {
     super.initState();
     _pages = [
-      HomePage(onTabChange: _goToTab),
+      HomePage(onTabChange: _goToTab, onDeleteAccount: _deleteAccount),
       const ChatPage(),
       ChecklistPage(
         key: _checklistKey,
@@ -155,7 +229,11 @@ class BottomBarState extends State<BottomBar> {
                   SizedBox(width: 12),
                   Text(
                     _titles[_currentIndex],
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 36, letterSpacing: 0.6),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 36,
+                      letterSpacing: 0.6,
+                    ),
                   ),
                 ],
               ),

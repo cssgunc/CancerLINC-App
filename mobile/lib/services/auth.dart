@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -64,4 +65,27 @@ class AuthService {
   Future<void> sendEmailVerification() async {
     await _auth.currentUser?.sendEmailVerification();
   }
+
+  Future<void> _mirrorEmailVerification(User user) async {
+    await user.getIdToken(true);
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'isVerified': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Permanently deletes the current user's account and all associated data.
+  ///
+  /// Calls the `deleteOwnAccount` Cloud Function, which deletes the Firebase
+  /// Auth account and Firestore data server-side using the caller's own
+  /// verified uid. This does NOT sign the user out locally — call [signOut]
+  /// yourself immediately after this succeeds. (Order matters: if you sign
+  /// out first, the ID token needed to authenticate this call is gone.)
+  Future<void> deleteAccount() async {
+    final callable = FirebaseFunctions.instance.httpsCallable(
+      'deleteOwnAccount',
+    );
+    await callable.call();
+  }
+  
 }

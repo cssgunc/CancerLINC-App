@@ -322,7 +322,6 @@ class _HeaderIconButton extends StatelessWidget {
   }
 }
 
-
 // ── Notification bell button ──────────────────────────────────────────────────
 
 class _NotificationIconButton extends StatefulWidget {
@@ -358,9 +357,9 @@ class _NotificationIconButtonState extends State<_NotificationIconButton> {
         content: Text(
           isGranted
               ? 'Notifications are enabled. You\'ll be alerted when '
-                'your social worker sends you a message.'
+                    'your social worker sends you a message.'
               : 'Enable notifications to be alerted when your social '
-                'worker sends you a message.',
+                    'worker sends you a message.',
         ),
         actions: [
           TextButton(
@@ -558,13 +557,33 @@ class _MessagesListState extends State<_MessagesList> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+    // Read this defensively rather than force-unwrapping. Depending on how
+    // BottomBar is implemented, this page's state may stay mounted in the
+    // background even while a different tab is what triggers account
+    // deletion — so `currentUser` can legitimately become null a beat
+    // before AuthGate swaps the whole tree out for LoginPage. Force-
+    // unwrapping here was exactly the kind of "confused between current
+    // and deleted user" crash the account-deletion flow needs to avoid.
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      // Signed out (e.g. mid account-deletion). AuthGate will swap this
+      // whole page out momentarily — render nothing rather than crash.
+      return const SizedBox.shrink();
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: _messagesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          // Can happen if security rules deny access once the chat/user
+          // docs are gone (e.g. mid account-deletion) — fail quietly
+          // instead of surfacing a raw error; this page is about to be
+          // torn down anyway.
+          return const SizedBox.shrink();
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {

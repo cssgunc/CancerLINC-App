@@ -8,7 +8,19 @@ import 'package:cancerlinc/services/event_service.dart';
 
 class HomePage extends StatelessWidget {
   final void Function(int) onTabChange;
-  HomePage({super.key, required this.onTabChange});
+
+  /// Deletes the current user's account (Cloud Function call, sign-out,
+  /// and navigation back to LoginPage) — implemented by BottomBarState so
+  /// it can reuse the exact same navigation logic as its own logout button.
+  /// Throws on failure (e.g. network error); on success it navigates away,
+  /// tearing down this whole widget tree.
+  final Future<void> Function() onDeleteAccount;
+
+  HomePage({
+    super.key,
+    required this.onTabChange,
+    required this.onDeleteAccount,
+  });
 
   static final Uri _resourcesUrl = Uri.parse(
     'https://cancerlinc.org/resources2025/',
@@ -19,6 +31,7 @@ class HomePage extends StatelessWidget {
     final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
     return name;
   }
+
   final int newMessageCount = 12;
   final EventService _eventService = EventService();
   final int completedChecklists = 10;
@@ -32,6 +45,68 @@ class HomePage extends StatelessWidget {
   Future<void> _openResources() async {
     if (await canLaunchUrl(_resourcesUrl)) {
       await launchUrl(_resourcesUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Are you sure you want to delete your account?"),
+          content: const Text(
+            "This will permanently delete your account and all of your "
+            "data. This cannot be undone.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text(
+                "Delete Account",
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    await _performAccountDeletion(context);
+  }
+
+  Future<void> _performAccountDeletion(BuildContext context) async {
+    // Blocking, non-dismissible progress indicator while deletion runs.
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // On success, onDeleteAccount also signs the user out and navigates
+      // to LoginPage — which tears down this entire widget tree (including
+      // the spinner dialog above), so there is nothing further to do here
+      // on the success path.
+      await onDeleteAccount();
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // close the spinner
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "We couldn't delete your account. Please check your connection "
+            "and try again.",
+          ),
+        ),
+      );
     }
   }
 
@@ -161,10 +236,7 @@ class HomePage extends StatelessWidget {
                   text: "Insurance",
                   onTap: () => _openResources(),
                 ),
-                _buildSmallCard(
-                  text: "Housing",
-                  onTap: () => _openResources(),
-                ),
+                _buildSmallCard(text: "Housing", onTap: () => _openResources()),
                 _buildSmallCard(
                   text: "Financial",
                   onTap: () => _openResources(),
@@ -249,25 +321,33 @@ class HomePage extends StatelessWidget {
                           children: [
                             Text(
                               "App built by",
-                              style:
-                              TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF666666),
+                              ),
                             ),
                             Text(
                               "UNC CS + SG",
-                              style:
-                              TextStyle(fontSize: 16, color: Colors.black),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.black,
+                              ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                     SizedBox(height: 12),
                     RichText(
                       text: TextSpan(
-                        style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF666666),
+                        ),
                         children: [
                           TextSpan(
-                            text: "UNC Computer Science for Social Good is a student organization dedicated to using our technical skills, time, and resources to make a positive impact on our campus, in our community, and in the world.\n\nWe design and create websites and apps for nonprofits and other organizations to fulfill our mission. Need our help? Check us out at ",
+                            text:
+                                "UNC Computer Science for Social Good is a student organization dedicated to using our technical skills, time, and resources to make a positive impact on our campus, in our community, and in the world.\n\nWe design and create websites and apps for nonprofits and other organizations to fulfill our mission. Need our help? Check us out at ",
                           ),
                           TextSpan(
                             text: "cssgunc.org",
@@ -277,7 +357,9 @@ class HomePage extends StatelessWidget {
                             ),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () async {
-                                final url = Uri.parse('https://www.cssgunc.org/');
+                                final url = Uri.parse(
+                                  'https://www.cssgunc.org/',
+                                );
                                 if (await canLaunchUrl(url)) {
                                   await launchUrl(url);
                                 }
@@ -287,6 +369,19 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            SizedBox(height: 24),
+            Center(
+              child: TextButton(
+                onPressed: () => _showDeleteAccountDialog(context),
+                child: Text(
+                  "Delete Account",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
