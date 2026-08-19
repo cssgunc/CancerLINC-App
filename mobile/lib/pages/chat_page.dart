@@ -579,10 +579,19 @@ class _MessagesListState extends State<_MessagesList> {
         final docs = snapshot.data!.docs;
         final groups = _groupMessages(docs, currentUserId);
 
-        // Only auto-scroll to the bottom when new messages actually arrive,
-        // and not while we're mid-way through jumping to a searched message.
+        // Only react when new messages actually arrive, not on every rebuild.
+        // Flipping isRead below changes document contents but not the count,
+        // so the receipt write cannot re-trigger itself.
         if (docs.length != _lastDocCount) {
           _lastDocCount = docs.length;
+
+          // Reading the chat is what clears the home screen's unread badge.
+          // Best-effort and deliberately not awaited: the list should render
+          // immediately regardless of whether the receipt write lands.
+          unawaited(widget.chatService.markMessagesRead(docs));
+
+          // Don't yank the list to the bottom while we're mid-way through
+          // jumping to a searched message.
           if (_highlightedMessageId == null) {
             _scrollToBottom(groups.length);
           }
