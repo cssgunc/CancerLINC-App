@@ -56,6 +56,11 @@ class _ChatPageState extends State<ChatPage> {
   bool _isVerified = false;
   bool _searchOpen = false;
 
+  // Reset on every mount, which is exactly what we want: BottomBar rebuilds
+  // ChatPage from scratch on each tab switch, so the notice reappears every
+  // time the user navigates back to the chat.
+  bool _hoursNoticeDismissed = false;
+
   @override
   void initState() {
     super.initState();
@@ -129,31 +134,71 @@ class _ChatPageState extends State<ChatPage> {
 
   /// Non-blocking notice telling patients when the Social Worker team is
   /// reachable, so an after-hours message doesn't read as being ignored.
-  /// Patients can still send messages at any time.
+  /// Patients can still send messages at any time. Swipe it up to dismiss it
+  /// for the rest of this visit to the chat.
+  ///
+  /// AnimatedSize collapses the banner rather than popping it out, matching the
+  /// 220ms easeOut used elsewhere in the app. A plain GestureDetector is enough
+  /// here — Dismissible wants a fixed-extent child in a list and brings its own
+  /// horizontal-swipe defaults we'd only have to switch off.
   Widget _hoursBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: const Color(0xFFFFF8E1),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.schedule, size: 20, color: Color(0xFF8D6E63)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text(
-                  '$socialWorkerHours Messages sent outside those hours will '
-                  'be answered the next working day. If this is urgent, call using the button above.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: _hoursNoticeDismissed
+          ? const SizedBox(width: double.infinity)
+          : GestureDetector(
+              onVerticalDragEnd: (details) {
+                // Upward flings only, so a downward drag over the banner
+                // doesn't dismiss what the user was trying to read.
+                if ((details.primaryVelocity ?? 0) < 0) {
+                  AppHaptics.tap();
+                  setState(() => _hoursNoticeDismissed = true);
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-              ],
+                color: const Color(0xFFFFF8E1),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.schedule,
+                      size: 20,
+                      color: Color(0xFF8D6E63),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text(
+                            '$socialWorkerHours Messages sent outside those hours will '
+                            'be answered the next working day. If this is urgent, call using the button above.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF5D4037),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Affordance: the swipe is otherwise invisible.
+                    const Icon(
+                      Icons.keyboard_arrow_up,
+                      size: 20,
+                      color: Color(0xFF8D6E63),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -466,6 +511,13 @@ class _MessagesListState extends State<_MessagesList> {
   Timer? _highlightTimer;
   int _lastDocCount = 0;
 
+  // BottomBar rebuilds ChatPage from scratch on every tab switch, so the very
+  // first snapshot always has to move the list from the top to the newest
+  // message. Animating that is what read as a wild scroll through the whole
+  // conversation; the initial placement is now instant and only genuinely new
+  // messages animate.
+  bool _didInitialScroll = false;
+
   @override
   void initState() {
     super.initState();
@@ -480,6 +532,7 @@ class _MessagesListState extends State<_MessagesList> {
       // chat document - not on every incidental rebuild.
       _messagesStream = widget.chatService.streamMessages(widget.chatId);
       _lastDocCount = 0;
+      _didInitialScroll = false;
     }
   }
 
@@ -489,13 +542,15 @@ class _MessagesListState extends State<_MessagesList> {
     super.dispose();
   }
 
-  void _scrollToBottom(int groupCount) {
+  void _scrollToBottom(int groupCount, {bool animate = true}) {
     if (groupCount == 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_itemScrollController.isAttached) {
         _itemScrollController.scrollTo(
           index: groupCount - 1,
-          duration: const Duration(milliseconds: 200),
+          duration: animate
+              ? const Duration(milliseconds: 200)
+              : Duration.zero,
           curve: Curves.easeOut,
         );
       }
@@ -593,7 +648,8 @@ class _MessagesListState extends State<_MessagesList> {
           // Don't yank the list to the bottom while we're mid-way through
           // jumping to a searched message.
           if (_highlightedMessageId == null) {
-            _scrollToBottom(groups.length);
+            _scrollToBottom(groups.length, animate: _didInitialScroll);
+            _didInitialScroll = true;
           }
         }
 
@@ -864,13 +920,17 @@ class _ChatInputState extends State<_ChatInput> {
     if (text.isEmpty || _sending) return;
 
     setState(() => _sending = true);
-    _controller.clear();
 
     try {
       String chatId =
           widget.chatId ?? await widget.chatService.findOrCreateUserChat();
       if (widget.chatId == null) widget.onChatCreated(chatId);
       await widget.chatService.sendMessage(chatId, text);
+      // Only clear once the message is actually in Firestore. sendChatMessage
+      // is a callable that returns after its batch commits, so awaiting it is
+      // the right line to draw. Clearing up front used to lose whatever the
+      // patient typed whenever the send failed.
+      _controller.clear();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -954,7 +1014,11 @@ class _ChatInputState extends State<_ChatInput> {
             onTap: _sending ? null : _pickAndSendImage,
           ),
           const SizedBox(width: 12),
-          _InputButton(icon: Icons.send, onTap: _sending ? null : _send),
+          _InputButton(
+            icon: Icons.send,
+            onTap: _sending ? null : _send,
+            loading: _sending,
+          ),
         ],
       ),
     );
@@ -965,7 +1029,15 @@ class _InputButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
 
-  const _InputButton({required this.icon, required this.onTap});
+  /// Swaps the icon for a spinner while the message is in flight, so the wait
+  /// between tapping send and the bubble appearing reads as progress.
+  final bool loading;
+
+  const _InputButton({
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -983,7 +1055,18 @@ class _InputButton extends StatelessWidget {
           color: onTap != null ? Colors.black : Colors.grey,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: Colors.white, size: 24),
+        child: loading
+            ? const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            : Icon(icon, color: Colors.white, size: 24),
       ),
     );
   }
