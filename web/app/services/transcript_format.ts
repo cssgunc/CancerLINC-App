@@ -9,11 +9,6 @@
 // _index.tsx) rather than introducing a second name for the same zone.
 const EASTERN_TIME_ZONE = "America/New_York";
 
-// A continuation message from the same sender only gets its own inline
-// timestamp once the gap since the previous message in the run exceeds this.
-// Named so the "5 minutes" isn't a magic number buried in the grouping logic.
-const CONTINUATION_TIME_GAP_MS = 5 * 60 * 1000;
-
 // Alternating accent colors for consecutive runs, purely for visual
 // scannability when skimming a long thread. Not tied to "patient vs staff"
 // identity — TranscriptEntry doesn't carry that distinction, and inferring it
@@ -111,8 +106,8 @@ function formatTranscriptDateOnly(ms: number): string {
     });
 }
 
-// Time-only, no date/timezone — used for the "(3:40 PM)" inline continuation
-// prefix, which is always understood relative to the run's leading timestamp.
+// Time-only, no date/timezone — used for the "[3:40 PM]" prefix on a message
+// continuing the same sender's run on the same day.
 function formatTranscriptTimeOnly(ms: number): string {
     return new Date(ms).toLocaleTimeString("en-US", {
         hour: "numeric",
@@ -151,6 +146,42 @@ function imagePlaceholder(entry: TranscriptEntry): string {
         : "[Image attachment]";
 }
 
+// ─── Timestamp precision ────────────────────────────────────────────────────
+
+// Eastern calendar day, as a sortable "2026-08-11" key. Derived through the
+// same time zone the timestamps are rendered in, never from the UTC date: a
+// 9 PM EDT message is already the next day in UTC, so a UTC-based comparison
+// would restate the date in the middle of an evening and omit it across a
+// real midnight.
+function easternDayKey(ms: number): string {
+    return new Date(ms).toLocaleDateString("en-CA", {
+        timeZone: EASTERN_TIME_ZONE,
+    });
+}
+
+// How much of a timestamp a message needs: the time alone only when it
+// continues the same sender's run on the same day, and the full date
+// otherwise. Both conditions matter — the shortening is a continuation
+// shorthand, so it stops the moment the speaker changes even if the day
+// hasn't. Whoever reads the archive shouldn't have to scan upward past
+// someone else's block to work out what day a line belongs to.
+//
+// Run-local by construction: a run breaks on every sender change, so index 0
+// is exactly "the speaker just changed" and always states the full date.
+// Shared by both flavors so the text and HTML transcripts can never disagree
+// about which lines show a date.
+function continuationTimestamp(run: TranscriptRun, index: number): string {
+    const entry = run.entries[index];
+    if (index === 0) {
+        return formatTranscriptTimestamp(entry.timestampMs);
+    }
+    const previous = run.entries[index - 1];
+    return easternDayKey(entry.timestampMs) ===
+        easternDayKey(previous.timestampMs)
+        ? formatTranscriptTimeOnly(entry.timestampMs)
+        : formatTranscriptTimestamp(entry.timestampMs);
+}
+
 // ─── Plain text ─────────────────────────────────────────────────────────────
 
 function formatSenderPlainText(name: string, email: string): string {
@@ -169,25 +200,20 @@ function buildTextHeader(meta: TranscriptMeta): string {
     ].join("\n");
 }
 
+// The sender line names the run; every message line beneath it then has the
+// same shape — timestamp in brackets, message immediately after it. The run's
+// first message is not a special case: it gets a bracketed timestamp exactly
+// like its continuations, so a reader never has to work out whether a given
+// line is carrying its own time or borrowing the header's.
 function buildTextRun(run: TranscriptRun): string {
-    const first = run.entries[0];
-    const headerLine = `[${formatTranscriptTimestamp(first.timestampMs)}] ${formatSenderPlainText(run.senderName, run.senderEmail)}`;
+    const headerLine = formatSenderPlainText(run.senderName, run.senderEmail);
 
     const bodyLines = run.entries.map((entry, index) => {
         const content =
             entry.messageType === "image"
                 ? imagePlaceholder(entry)
                 : entry.content;
-
-        if (index === 0) {
-            return content;
-        }
-
-        const gapMs = entry.timestampMs - run.entries[index - 1].timestampMs;
-        if (gapMs > CONTINUATION_TIME_GAP_MS) {
-            return `(${formatTranscriptTimeOnly(entry.timestampMs)}) ${content}`;
-        }
-        return content;
+        return `[${continuationTimestamp(run, index)}] ${content}`;
     });
 
     return [headerLine, ...bodyLines].join("\n");
@@ -263,26 +289,21 @@ function buildHtmlHeader(meta: TranscriptMeta): string {
 }
 
 function buildHtmlRun(run: TranscriptRun, accentColor: string): string {
-    const first = run.entries[0];
     const sender = formatSenderHtml(run.senderName, run.senderEmail);
-    const timestamp = formatTranscriptTimestamp(first.timestampMs);
 
+    // Same shape as the text flavor: sender heads the run, then every message
+    // line leads with its own bracketed timestamp. The timestamp stays inline
+    // ahead of the message rather than on a line of its own, so the pair
+    // survives as one unit through a mail client's html-to-plain-text
+    // downgrade, which drops standalone-line structure far more readily than
+    // it drops intra-line order.
     const bodyLines = run.entries.map((entry, index) => {
         const content =
             entry.messageType === "image"
                 ? escapeHtml(imagePlaceholder(entry))
                 : escapeHtmlMultiline(entry.content);
-
-        if (index === 0) {
-            return content;
-        }
-
-        const gapMs = entry.timestampMs - run.entries[index - 1].timestampMs;
-        if (gapMs > CONTINUATION_TIME_GAP_MS) {
-            const time = formatTranscriptTimeOnly(entry.timestampMs);
-            return `<span style="color:#999999;font-size:12px;">(${time})</span> ${content}`;
-        }
-        return content;
+        const timestamp = continuationTimestamp(run, index);
+        return `<span style="color:#999999;font-size:12px;">[${timestamp}]</span> ${content}`;
     });
 
     // border-left (not background-color) for the sender accent: Outlook
@@ -291,10 +312,7 @@ function buildHtmlRun(run: TranscriptRun, accentColor: string): string {
     // gracefully to a plain rule.
     return `
 <div style="border-left:3px solid ${accentColor};padding-left:12px;margin-bottom:16px;">
-    <div style="margin-bottom:4px;">
-        ${sender}
-        <span style="color:#999999;font-size:12px;"> &mdash; ${timestamp}</span>
-    </div>
+    <div style="margin-bottom:4px;">${sender}</div>
     <div style="font-size:14px;color:#1a1a1a;line-height:1.5;">
         ${bodyLines.join("<br>\n        ")}
     </div>
