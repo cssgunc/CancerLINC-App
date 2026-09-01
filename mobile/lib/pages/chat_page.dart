@@ -56,9 +56,9 @@ class _ChatPageState extends State<ChatPage> {
   bool _searchOpen = false;
 
   // Reset on every mount, which is exactly what we want: BottomBar rebuilds
-  // ChatPage from scratch on each tab switch, so the notice reappears every
-  // time the user navigates back to the chat.
-  bool _hoursNoticeDismissed = false;
+  // ChatPage from scratch on each tab switch, so the notice reappears
+  // expanded every time the user navigates back to the chat.
+  bool _hoursNoticeCollapsed = false;
 
   @override
   void initState() {
@@ -133,71 +133,105 @@ class _ChatPageState extends State<ChatPage> {
 
   /// Non-blocking notice telling patients when the Social Worker team is
   /// reachable, so an after-hours message doesn't read as being ignored.
-  /// Patients can still send messages at any time. Swipe it up to dismiss it
-  /// for the rest of this visit to the chat.
+  /// Patients can still send messages at any time.
   ///
-  /// AnimatedSize collapses the banner rather than popping it out, matching the
-  /// 220ms easeOut used elsewhere in the app. A plain GestureDetector is enough
-  /// here — Dismissible wants a fixed-extent child in a list and brings its own
-  /// horizontal-swipe defaults we'd only have to switch off.
+  /// Collapses to a thin strip rather than disappearing: the hours stay one
+  /// tap away for the rest of the visit instead of being gone until the next
+  /// time the chat tab is rebuilt. Tapping anywhere on it toggles, in either
+  /// state, as does a vertical swipe.
+  ///
+  /// AnimatedSize animates between the two heights, matching the 220ms easeOut
+  /// used elsewhere in the app. A plain GestureDetector is enough for the
+  /// swipe — Dismissible wants a fixed-extent child in a list and brings its
+  /// own horizontal-swipe defaults we'd only have to switch off.
+  void _setHoursNoticeCollapsed(bool collapsed) {
+    if (_hoursNoticeCollapsed == collapsed) return;
+    AppHaptics.tap();
+    setState(() => _hoursNoticeCollapsed = collapsed);
+  }
+
   Widget _hoursBanner() {
     return AnimatedSize(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
       alignment: Alignment.topCenter,
-      child: _hoursNoticeDismissed
-          ? const SizedBox(width: double.infinity)
-          : GestureDetector(
-              onVerticalDragEnd: (details) {
-                // Upward flings only, so a downward drag over the banner
-                // doesn't dismiss what the user was trying to read.
-                if ((details.primaryVelocity ?? 0) < 0) {
-                  AppHaptics.tap();
-                  setState(() => _hoursNoticeDismissed = true);
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                color: const Color(0xFFFFF8E1),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.schedule,
-                      size: 20,
-                      color: Color(0xFF8D6E63),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const Text(
-                            '$socialWorkerHours Messages sent outside those hours will '
-                            'be answered the next working day. If this is urgent, call using the button above.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF5D4037),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Affordance: the swipe is otherwise invisible.
-                    const Icon(
-                      Icons.keyboard_arrow_up,
-                      size: 20,
-                      color: Color(0xFF8D6E63),
-                    ),
-                  ],
-                ),
-              ),
+      child: Semantics(
+        button: true,
+        label: _hoursNoticeCollapsed
+            ? 'Show social worker hours'
+            : 'Hide social worker hours',
+        child: GestureDetector(
+          onVerticalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            // Direction-matched: a fling up tucks it away, a fling down pulls
+            // it back out. A drag that goes nowhere leaves the state alone.
+            if (velocity < 0) {
+              _setHoursNoticeCollapsed(true);
+            } else if (velocity > 0) {
+              _setHoursNoticeCollapsed(false);
+            }
+          },
+          // The whole banner toggles in both states — the chevron is the
+          // affordance, not the only tap target.
+          child: InkWell(
+            onTap: () => _setHoursNoticeCollapsed(!_hoursNoticeCollapsed),
+            child: _hoursNoticeCollapsed
+                ? _collapsedHoursBanner()
+                : _expandedHoursBanner(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The tucked-away state: a bare strip of the notice's colour with just the
+  /// chevron on it, keeping the reopen affordance visible without spending any
+  /// vertical space on copy. The chevron sits at the right edge, on the same
+  /// 16px inset as the expanded banner's, so it doesn't move sideways as the
+  /// banner opens and closes.
+  Widget _collapsedHoursBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      color: const Color(0xFFFFF8E1),
+      alignment: Alignment.centerRight,
+      child: const Icon(
+        Icons.keyboard_arrow_down,
+        size: 16,
+        color: Color(0xFF8D6E63),
+      ),
+    );
+  }
+
+  Widget _expandedHoursBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: const Color(0xFFFFF8E1),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.schedule, size: 20, color: Color(0xFF8D6E63)),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              '$socialWorkerHours Messages sent outside those hours will '
+              'be answered the next working day. If this is urgent, call using the button above.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
             ),
+          ),
+          const SizedBox(width: 8),
+          // Affordance only — the tap is handled by the banner-wide InkWell,
+          // so this stays a plain Icon rather than a nested button that would
+          // swallow taps in one corner and report itself separately to
+          // screen readers.
+          const Icon(
+            Icons.keyboard_arrow_up,
+            size: 20,
+            color: Color(0xFF8D6E63),
+          ),
+        ],
+      ),
     );
   }
 
@@ -407,9 +441,12 @@ class _MessagesListState extends State<_MessagesList> {
   // scrollToMessage()/_scrollToBottom(), never as a side effect of rebuilding.
   late Stream<QuerySnapshot> _messagesStream;
 
-  // Index (within the current groups list) of the group containing a given
-  // messageId, so scrollToMessage knows exactly where to jump.
+  // Chronological index (within the current groups list) of the group
+  // containing a given messageId, so scrollToMessage knows exactly where to
+  // jump. The list renders reversed, so this is mirrored against
+  // _lastGroupCount before it's handed to the scroll controller.
   final Map<String, int> _messageGroupIndex = {};
+  int _lastGroupCount = 0;
 
   String? _highlightedMessageId;
   Timer? _highlightTimer;
@@ -446,27 +483,49 @@ class _MessagesListState extends State<_MessagesList> {
     super.dispose();
   }
 
+  /// The list is reversed, so the newest group is view index 0 and the
+  /// bottom of the conversation is scroll offset 0 — a reversed list already
+  /// sticks there as messages arrive. This only has to do anything when the
+  /// user has scrolled up, and then it's a short hop rather than a jump
+  /// across the whole conversation.
   void _scrollToBottom(int groupCount, {bool animate = true}) {
     if (groupCount == 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_itemScrollController.isAttached) {
+      if (!_itemScrollController.isAttached) return;
+      if (_isAtBottom()) return;
+      // scrollTo() asserts on a zero duration, so the un-animated landing
+      // on a chat has to go through jumpTo().
+      if (animate) {
         _itemScrollController.scrollTo(
-          index: groupCount - 1,
-          duration: animate
-              ? const Duration(milliseconds: 200)
-              : Duration.zero,
+          index: 0,
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
+      } else {
+        _itemScrollController.jumpTo(index: 0);
       }
     });
+  }
+
+  /// True when the newest group is already fully on screen, which is the
+  /// common case right after sending: the reversed list kept us pinned to the
+  /// bottom and there is nothing to animate.
+  bool _isAtBottom() {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return false;
+    for (final position in positions) {
+      if (position.index == 0) return position.itemLeadingEdge >= -0.001;
+    }
+    return false;
   }
 
   /// Scrolls the list so the message with [messageId] is visible, and
   /// briefly highlights it so it's easy to spot. Works in O(1) regardless
   /// of how many messages are in the chat or how far away this one is.
   void scrollToMessage(String messageId) {
-    final targetIndex = _messageGroupIndex[messageId];
-    if (targetIndex == null) return;
+    final groupIndex = _messageGroupIndex[messageId];
+    if (groupIndex == null) return;
+    final targetIndex = _lastGroupCount - 1 - groupIndex;
 
     setState(() => _highlightedMessageId = messageId);
     _highlightTimer?.cancel();
@@ -480,8 +539,10 @@ class _MessagesListState extends State<_MessagesList> {
           index: targetIndex,
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeInOut,
-          // 0.0 = target lands at the top, 1.0 = bottom. 0.3 keeps some
-          // preceding context visible above the highlighted message.
+          // Alignment is measured along the scroll axis, which the reversed
+          // list runs bottom-to-top: 0.0 lands the target at the bottom of
+          // the viewport, 1.0 at the top. 0.3 leaves it low on the screen so
+          // the preceding messages stay visible above it.
           alignment: 0.3,
         );
       } else if (mounted) {
@@ -537,6 +598,7 @@ class _MessagesListState extends State<_MessagesList> {
 
         final docs = snapshot.data!.docs;
         final groups = _groupMessages(docs, currentUserId);
+        _lastGroupCount = groups.length;
 
         // Only react when new messages actually arrive, not on every rebuild.
         // Flipping isRead below changes document contents but not the count,
@@ -557,14 +619,19 @@ class _MessagesListState extends State<_MessagesList> {
           }
         }
 
+        // Reversed so the newest message is the resting position: a reversed
+        // list stays pinned to the bottom as messages arrive, instead of
+        // needing a scroll that would fling the newest group up to the top of
+        // the viewport. View index 0 is the newest group.
         return ScrollablePositionedList.separated(
+          reverse: true,
           itemScrollController: _itemScrollController,
           itemPositionsListener: _itemPositionsListener,
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
           itemCount: groups.length,
           separatorBuilder: (context, index) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
-            final group = groups[index];
+            final group = groups[groups.length - 1 - index];
             final lastMsg = group.messages.last;
             final timestamp = lastMsg['timestamp'] as Timestamp?;
             final time = timestamp != null
