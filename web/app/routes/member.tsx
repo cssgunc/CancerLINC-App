@@ -513,11 +513,6 @@ export default function MemberPage() {
         return fullName || "Unknown User";
     }, [chatUserProfile]);
 
-    const chatUserFirstName = useMemo(() => {
-        if (!chatUserProfile?.firstName?.trim()) return "User";
-        return chatUserProfile.firstName.trim();
-    }, [chatUserProfile]);
-
     useEffect(() => {
         if (!selectedImage) {
             setSelectedImagePreviewUrl("");
@@ -932,9 +927,9 @@ export default function MemberPage() {
 
                 <div className="flex flex-1 items-stretch justify-center gap-6 min-h-[560px]">
                     {/* Referrals + checklists column */}
-                    <div className="flex w-[25vw] min-w-[260px] flex-col gap-4 overflow-y-auto">
+                    <div className="flex min-w-[260px] max-w-[460px] flex-1 basis-[380px] flex-col gap-4 overflow-y-auto">
                         <CollapsibleSection
-                            title={`${chatUserFirstName}'s Referrals`}
+                            title="Referrals"
                             actions={
                                 <button
                                     className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-500 underline transition-colors hover:text-black"
@@ -970,14 +965,11 @@ export default function MemberPage() {
                             </div>
                         </CollapsibleSection>
 
-                        <ChecklistWidget
-                            patientId={userId}
-                            patientFirstName={chatUserFirstName}
-                        />
+                        <ChecklistWidget patientId={userId} />
                     </div>
 
                     {/* Chat column */}
-                    <div className="flex w-[50vw] min-w-[360px] max-w-[600px] flex-col">
+                    <div className="flex min-w-[360px] max-w-[600px] flex-1 shrink-[10] basis-[50vw] flex-col">
                         <h2 className="mb-3 text-right text-[24px] font-semibold leading-tight text-black">
                             Chat with {chatUserFullName}
                         </h2>
