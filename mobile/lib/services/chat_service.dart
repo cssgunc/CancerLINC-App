@@ -32,7 +32,13 @@ class ChatService {
       );
     }
 
-    final token = await user.getIdTokenResult(true);
+    // Deliberately NOT forcing a refresh. A forced refresh is a full network
+    // round-trip to the identity endpoint before every callable, which on a
+    // send is latency stacked in front of the callable's own round-trip. The
+    // token here is only read for the diagnostics below — no backend callable
+    // gates on the email_verified claim (see assertCanSendMessage, which reads
+    // Firestore) — and the callables SDK refreshes an expired token itself.
+    final token = await user.getIdTokenResult();
     _debugLog(
       '$operation token ready: uid=${user.uid}, '
       'emailVerified=${user.emailVerified}, '
