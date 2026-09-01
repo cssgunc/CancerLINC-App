@@ -200,6 +200,15 @@ service cloud.firestore {
           resource.data.senderId != request.auth.uid;
         allow delete: if false;
       }
+
+      match /transcriptExports/{exportId} {
+        // Written by the Admin SDK via the recordTranscriptExport callable
+        // only, never directly by a client. Staff-only read keeps the
+        // export audit trail (who exported, when, what range) invisible to
+        // patients, who have no reason to see it.
+        allow read: if isStaff();
+        allow create, update, delete: if false;
+      }
     }
 
     match /checklists/{uid}/user_checklists/{docId} {

@@ -121,6 +121,9 @@ export default function MemberPage() {
                         userId={userId}
                         chatUserFullName={chatUserFullName}
                         currentUserName={currentUserName}
+                        patientEmail={chatUserProfile?.email ?? ""}
+                        currentUserEmail={user?.email ?? ""}
+                        currentUserId={user?.uid ?? ""}
                     />
                 </div>
             </div>

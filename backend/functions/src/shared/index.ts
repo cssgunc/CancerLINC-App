@@ -98,7 +98,7 @@ function hasHeader(request: CallableRequest<unknown>, name: string): boolean {
   return typeof value === "string" && value.length > 0;
 }
 
-function logCallableRequest(
+export function logCallableRequest(
     callable: string,
     request: CallableRequest<unknown>): void {
   logger.info("Callable request received", {
@@ -119,7 +119,7 @@ function logCallableRequest(
   });
 }
 
-function requireAuthUid(uid?: string): string {
+export function requireAuthUid(uid?: string): string {
   if (!uid) {
     throw new HttpsError("unauthenticated", "You must be signed in.");
   }
@@ -229,7 +229,7 @@ async function findChatParticipant(patientId: string): Promise<string> {
       "No available user was found to create a chat.");
 }
 
-async function assertCanSendMessage(uid: string, chatId: string): Promise<void> {
+export async function assertChatParticipant(uid: string, chatId: string): Promise<void> {
   const chatDoc = await firestore.collection("chats").doc(chatId).get();
   if (!chatDoc.exists) {
     throw new HttpsError("not-found", "Chat not found.");
@@ -241,6 +241,38 @@ async function assertCanSendMessage(uid: string, chatId: string): Promise<void> 
         "permission-denied",
         "You are not a participant in this chat.");
   }
+}
+
+// Mirrors isOwnChatOrParticipant() in firestore.rules: the patient owns the
+// chat at their own uid, any staff member may reach any chat, and anyone
+// listed on the chat doc is a participant. Deliberately kept as loose as the
+// read rules. Note `participants` only picks up a social worker once they
+// have SENT a message, so it cannot stand in for a staff check.
+export async function assertCanAccessChat(
+    uid: string, chatId: string): Promise<void> {
+  const chatDoc = await firestore.collection("chats").doc(chatId).get();
+  if (!chatDoc.exists) {
+    throw new HttpsError("not-found", "Chat not found.");
+  }
+
+  if (uid === chatId) {
+    return;
+  }
+
+  const participants = chatDoc.data()?.participants;
+  if (Array.isArray(participants) && participants.includes(uid)) {
+    return;
+  }
+
+  const role = (await firestore.collection("users").doc(uid).get()).get("role");
+  // Both spellings are in the wild; findChatParticipant tolerates the same.
+  if (role === "social_worker" || role === "socialWorker" || role === "admin") {
+    return;
+  }
+
+  throw new HttpsError(
+      "permission-denied",
+      "You do not have access to this chat.");
 }
 
 export const onAuthUserCreated = functions.auth.user().onCreate(async (user) => {
@@ -299,7 +331,7 @@ export const createUserChat = onCall(publicCallableOptions, async (request) => {
     participants: [uid, otherUserId],
     lastMessage: "",
     lastMessageTimestamp: serverTimestamp(),
-  });
+  }, {merge: true});
 
   logger.info("createUserChat created chat", {uid, otherUserId});
   return {chatId: uid};
@@ -327,7 +359,7 @@ export const sendChatMessage = onCall(
             "chatId and content are required.");
       }
 
-      await assertCanSendMessage(uid, chatId);
+      await assertChatParticipant(uid, chatId);
 
       const messagesRef = firestore
           .collection("chats")
@@ -396,7 +428,7 @@ export const sendChatImageMessage = onCall(
             "Image path does not belong to this chat.");
       }
 
-      await assertCanSendMessage(uid, chatId);
+      await assertChatParticipant(uid, chatId);
 
       const messagesRef = firestore
           .collection("chats")
