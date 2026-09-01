@@ -99,6 +99,60 @@ class ChatService {
         .snapshots();
   }
 
+  /// Streams how many messages in [chatId] were sent by someone else and have
+  /// not been marked read yet.
+  ///
+  /// Only `isRead` is filtered server-side: an equality-only query is covered
+  /// by the automatic single-field index, whereas adding `senderId` would need
+  /// a composite index. The sender check is therefore done client-side.
+  Stream<int> streamUnreadCount(String chatId) {
+    return _db
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .where((doc) => doc.data()['senderId'] != currentUserId)
+              .length,
+        );
+  }
+
+  /// Unread count for the current user's own chat. The chat document id is the
+  /// user's uid, so this needs no lookup — a chat that does not exist yet just
+  /// streams 0.
+  Stream<int> streamCurrentUserUnreadCount() =>
+      streamUnreadCount(currentUserId);
+
+  /// Flips `isRead` to true on every message in [docs] the current user did not
+  /// send, so the home screen's unread count clears once the chat is opened.
+  ///
+  /// Read receipts are best-effort: a failure here is logged and swallowed
+  /// rather than surfaced, since the patient did nothing wrong and the write
+  /// retries on the next snapshot anyway.
+  Future<void> markMessagesRead(List<QueryDocumentSnapshot> docs) async {
+    final unread = docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>?;
+      if (data == null) return false;
+      return data['isRead'] != true && data['senderId'] != currentUserId;
+    }).toList();
+
+    if (unread.isEmpty) return;
+
+    final batch = _db.batch();
+    for (final doc in unread) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+
+    try {
+      await batch.commit();
+      _debugLog('markMessagesRead marked ${unread.length} message(s) read');
+    } catch (e) {
+      _debugLog('markMessagesRead failed: $e');
+    }
+  }
+
   /// Adds a message to [chatId] and updates the chat's lastMessage fields.
   Future<void> sendMessage(String chatId, String content) async {
     await _callFunction('sendChatMessage', {
