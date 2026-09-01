@@ -3,8 +3,13 @@ import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cancerlinc/components/call_number.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cancerlinc/models/checklist.dart';
 import 'package:cancerlinc/models/event.dart';
+import 'package:cancerlinc/models/referral.dart';
+import 'package:cancerlinc/services/chat_service.dart';
+import 'package:cancerlinc/services/checklist_service.dart';
 import 'package:cancerlinc/services/event_service.dart';
+import 'package:cancerlinc/services/referral_service.dart';
 
 class HomePage extends StatelessWidget {
   final void Function(int) onTabChange;
@@ -19,11 +24,13 @@ class HomePage extends StatelessWidget {
     final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
     return name;
   }
-  final int newMessageCount = 12;
+  // Held as fields so each stream is created once per HomePage instance rather
+  // than on every rebuild, which would make the StreamBuilders flash back to
+  // their loading state.
+  final ChatService _chatService = ChatService();
+  final ChecklistService _checklistService = ChecklistService();
   final EventService _eventService = EventService();
-  final int completedChecklists = 10;
-  final int totalChecklists = 12;
-  final int activeReferrals = 11;
+  final ReferralService _referralService = ReferralService();
   final String faxNumber = "804-918-0946";
   final String phoneNumber = "804-562-0371";
   final String addressLine1 = "200 South 3rd St,";
@@ -75,25 +82,10 @@ class HomePage extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 1.3,
               children: [
-                _buildCard(
-                  label: "Chat",
-                  icon: Icons.chat_bubble_outline,
-                  info: "$newMessageCount new messages",
-                  onTap: () => onTabChange(1),
-                ),
+                _buildChatCard(),
                 _buildCalendarCard(),
-                _buildCard(
-                  label: "Checklists",
-                  icon: Icons.check_box_outlined,
-                  info: "$completedChecklists of $totalChecklists complete",
-                  onTap: () => onTabChange(2),
-                ),
-                _buildCard(
-                  label: "Referrals",
-                  icon: Icons.assignment_ind_outlined,
-                  info: "$activeReferrals active",
-                  onTap: () => onTabChange(3),
-                ),
+                _buildChecklistCard(),
+                _buildReferralsCard(),
               ],
             ),
             SizedBox(height: 24),
@@ -370,6 +362,88 @@ class HomePage extends StatelessWidget {
 
   String _formatShortDate(DateTime d) =>
       '${_shortMonths[d.month - 1]} ${d.day}';
+
+  Widget _buildChatCard() {
+    return StreamBuilder<int>(
+      stream: _chatService.streamCurrentUserUnreadCount(),
+      builder: (context, snapshot) {
+        String info;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          info = "Loading...";
+        } else if (snapshot.hasError || snapshot.data == null) {
+          info = "No new messages";
+        } else {
+          final count = snapshot.data!;
+          info = count == 0
+              ? "No new messages"
+              : "$count new message${count == 1 ? '' : 's'}";
+        }
+        return _buildCard(
+          label: "Chat",
+          icon: Icons.chat_bubble_outline,
+          info: info,
+          onTap: () => onTabChange(1),
+        );
+      },
+    );
+  }
+
+  Widget _buildChecklistCard() {
+    return StreamBuilder<List<Checklist>>(
+      stream: _checklistService.streamCurrentUserChecklists(archived: false),
+      builder: (context, snapshot) {
+        String info;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          info = "Loading...";
+        } else if (snapshot.hasError || snapshot.data == null) {
+          info = "All caught up";
+        } else {
+          // Unchecked items across every list the user has not archived.
+          final remaining = snapshot.data!.fold<int>(
+            0,
+            (total, checklist) =>
+                total + checklist.items.where((item) => !item.checked).length,
+          );
+          info = remaining == 0
+              ? "All caught up"
+              : "$remaining item${remaining == 1 ? '' : 's'} left";
+        }
+        return _buildCard(
+          label: "Checklists",
+          icon: Icons.check_box_outlined,
+          info: info,
+          onTap: () => onTabChange(2),
+        );
+      },
+    );
+  }
+
+  Widget _buildReferralsCard() {
+    return StreamBuilder<List<Referral>>(
+      // The service already drops soft-deleted referrals, so every status
+      // counts here.
+      stream: _referralService.streamCurrentUserReferrals(),
+      builder: (context, snapshot) {
+        String info;
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          info = "Loading...";
+        } else if (snapshot.hasError || snapshot.data == null) {
+          info = "No referrals";
+        } else {
+          final count = snapshot.data!.length;
+          info = count == 0
+              ? "No referrals"
+              : "$count referral${count == 1 ? '' : 's'}";
+        }
+        return _buildCard(
+          label: "Referrals",
+          icon: Icons.assignment_ind_outlined,
+          info: info,
+          onTap: () => onTabChange(3),
+        );
+      },
+    );
+  }
 
   Widget _buildCalendarCard() {
     return StreamBuilder<Event?>(

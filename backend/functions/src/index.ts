@@ -17,4 +17,6 @@ export {
   setStaffDisabled,
 } from "./admin";
 
-export { calendarIcs } from "./calendar";
+export {calendarIcs} from "./calendar";
+
+export {recordTranscriptExport} from "./staff";
